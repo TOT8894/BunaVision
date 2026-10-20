@@ -56,12 +56,20 @@ So the five of us can build in parallel without blocking each other:
 
 ## Running locally
 
+### Option 1: Full stack with Docker Compose
 ```bash
-# All three services (entry points are filled in by their owners):
+# Build and run all three services simultaneously:
 docker compose up --build
 ```
+- **Frontend Web UI:** `http://localhost:5173`
+- **Backend API:** `http://localhost:8000` (Swagger UI at `/docs`)
+- **Vision Inference Service:** `http://localhost:9000` (Swagger UI at `/docs`)
 
-Per-service dev instructions live in each service's folder. See each `*/AGENTS.md` for the rules that apply to that area.
+### Option 2: Running services independently
+During development, each service can be initialized and run in isolation:
+- **Vision Service:** See [`vision/README.md`](vision/README.md) for local environment setup, ONNX inference, and port `9000` instructions.
+- **Backend Service:** See [`backend/AGENTS.md`](backend/AGENTS.md) for API orchestration and dependencies (port `8000`).
+- **Frontend App:** See [`frontend/AGENTS.md`](frontend/AGENTS.md) for React/TS dev server setup (port `5173`).
 
 ## Product invariants (every service upholds)
 
@@ -81,3 +89,4 @@ This repo was recently restructured from a single `app/` monolith into the three
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — target architecture & open decisions.
 - [`docs/MIGRATION.md`](docs/MIGRATION.md) — the monolith→3-service move + what each member still implements.
 - [`docs/BunaVision.md`](docs/BunaVision.md) — full product specification.
+- [`vision/README.md`](vision/README.md) — vision microservice runbook & API documentation.

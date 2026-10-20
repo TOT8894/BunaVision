@@ -14,16 +14,15 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.config import settings
-from app.schemas import (
+from app.core.config import settings
+from app.core.schemas import (
     CoffeeAssessmentResponse,
     HealthCheckResponse,
     YOLODetectionResult,
     ErrorDetail,
     ErrorResponse,
 )
-from app.services.gemini_vision import analyze_coffee_sample
-from app.services.yolo_detector import yolo_service, MODEL_PATH
+from app.adapters.gemini.gemini_vision import analyze_coffee_sample
 
 # ---------------------------------------------------------------------------
 # Logging
