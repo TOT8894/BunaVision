@@ -62,7 +62,7 @@ async def health(detector: YOLODetectorService = Depends(get_detector)):
         engine=detector.engine_type,
         model_loaded=detector.is_loaded,
         model_path=str(detector.model_path) if detector.model_path else None,
-        supported_classes=SUPPORTED_CLASSES,
+        supported_classes=detector.supported_classes,
     )
 
 @app.post("/detect", response_model=YOLODetectionResult, tags=["Inference"])

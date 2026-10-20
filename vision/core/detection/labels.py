@@ -1,28 +1,10 @@
 import json
 import logging
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Any, Optional, List
 from vision.core.detection.config import CLASSES_JSON_PATH
 
 logger = logging.getLogger("bunavision.labels")
-
-DEFAULT_CLASSES: Dict[int, str] = {
-    0: "hitam",
-    1: "hitam-sebagian",
-    2: "kulit-kopi-kecil",
-}
-
-def load_class_mapping() -> Dict[int, str]:
-    if CLASSES_JSON_PATH.exists():
-        try:
-            with open(CLASSES_JSON_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            names = data.get("names", {})
-            return {int(k): v for k, v in names.items()}
-        except Exception as e:
-            logger.warning(f"Could not load classes.json: {e}")
-    return DEFAULT_CLASSES.copy()
-
-ONNX_CLASSES = load_class_mapping()
 
 # Canonical English naming for the 3 supported defect classes
 CLASS_NAME_MAP = {
@@ -30,8 +12,6 @@ CLASS_NAME_MAP = {
     "hitam-sebagian": "Partial Black",
     "kulit-kopi-kecil": "Coffee Husk / Parchment",
 }
-
-SUPPORTED_CLASSES = ["Full Black", "Partial Black", "Coffee Husk / Parchment"]
 
 CLASS_COLORS = {
     "Primary Defect": (220, 38, 38),     # Red
@@ -50,6 +30,44 @@ SECONDARY_DEFECT_CLASSES = {
     "coffee_husk_parchment",
 }
 
+def load_class_manifest(manifest_path: Optional[Path] = None) -> Dict[str, Any]:
+    path = manifest_path if manifest_path is not None else CLASSES_JSON_PATH
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Class manifest file not found at {path}. Model bundle is incomplete."
+        )
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Corrupt or invalid JSON in class manifest at {path}: {e}") from e
+
+    if "names" not in data or not isinstance(data["names"], dict):
+        raise ValueError(
+            f"Invalid class manifest at {path}: missing or invalid 'names' mapping."
+        )
+    return data
+
+def load_class_mapping(manifest_path: Optional[Path] = None) -> Dict[int, str]:
+    data = load_class_manifest(manifest_path)
+    return {int(k): str(v) for k, v in data["names"].items()}
+
+def get_display_name(raw_name: str) -> str:
+    lower_name = raw_name.lower()
+    if lower_name in CLASS_NAME_MAP:
+        return CLASS_NAME_MAP[lower_name]
+    raise ValueError(
+        f"Unknown defect class label '{raw_name}'. "
+        f"Allowed raw labels: {list(CLASS_NAME_MAP.keys())}."
+    )
+
+def get_supported_classes(class_mapping: Optional[Dict[int, str]] = None) -> List[str]:
+    mapping = class_mapping if class_mapping is not None else ONNX_CLASSES
+    return [get_display_name(name) for name in mapping.values()]
+
+ONNX_CLASSES = load_class_mapping()
+SUPPORTED_CLASSES = get_supported_classes(ONNX_CLASSES)
+
 def classify_category(class_name: str) -> str:
     clean = class_name.lower().replace("-", "_").replace(" ", "_")
     if clean in PRIMARY_DEFECT_CLASSES:
@@ -60,13 +78,4 @@ def classify_category(class_name: str) -> str:
     raise ValueError(
         f"Unsupported defect class '{class_name}'. "
         f"The model only supports: {SUPPORTED_CLASSES}."
-    )
-
-def get_display_name(raw_name: str) -> str:
-    lower_name = raw_name.lower()
-    if lower_name in CLASS_NAME_MAP:
-        return CLASS_NAME_MAP[lower_name]
-    raise ValueError(
-        f"Unknown defect class label '{raw_name}'. "
-        f"Allowed raw labels: {list(CLASS_NAME_MAP.keys())}."
     )

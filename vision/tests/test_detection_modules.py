@@ -1,4 +1,6 @@
 import io
+import json
+import tempfile
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
@@ -16,6 +18,11 @@ from vision.core.detection.config import (
     DEFAULT_IMG_SIZE,
     MODEL_VERSION,
 )
+from vision.core.detection.labels import (
+    load_class_manifest,
+    load_class_mapping,
+    get_supported_classes,
+)
 from vision.core.detection.preprocessing import (
     prepare_image,
     preprocess_for_onnx,
@@ -31,6 +38,8 @@ class DummyEngine:
     model_version = "DummyEngine-v1"
     engine_type = "dummy"
     is_loaded = True
+    supported_classes = ["Full Black", "Partial Black"]
+    class_mapping = {0: "hitam", 1: "hitam-sebagian"}
 
     def predict(self, pil_img, conf_threshold):
         return [
@@ -51,6 +60,7 @@ def test_dummy_engine_injection():
     assert service.is_loaded is True
     assert service.engine_type == "dummy"
     assert service.model_version == "DummyEngine-v1"
+    assert service.supported_classes == ["Full Black", "Partial Black"]
 
     img = Image.new("RGB", (200, 200), color=(128, 128, 128))
     buf = io.BytesIO()
@@ -126,3 +136,69 @@ def test_onnx_invalid_output_shape_fails():
     with patch("onnxruntime.InferenceSession", return_value=mock_session):
         engine = ONNXDetectionEngine()
         assert engine.is_loaded is False
+
+def test_manifest_missing_raises_no_silent_fallback():
+    # Enforce fail-fast: if manifest file does not exist, loud failure without fallback
+    non_existent = Path("non_existent_classes_manifest.json")
+    with pytest.raises(FileNotFoundError) as exc:
+        load_class_manifest(non_existent)
+    assert "Class manifest file not found" in str(exc.value)
+
+    with pytest.raises(FileNotFoundError):
+        load_class_mapping(non_existent)
+
+def test_manifest_invalid_json_raises():
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        f.write("{ invalid json")
+        temp_path = Path(f.name)
+
+    try:
+        with pytest.raises(ValueError) as exc:
+            load_class_manifest(temp_path)
+        assert "Corrupt or invalid JSON" in str(exc.value)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+def test_manifest_missing_names_key_raises():
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump({"num_classes": 3}, f)
+        temp_path = Path(f.name)
+
+    try:
+        with pytest.raises(ValueError) as exc:
+            load_class_manifest(temp_path)
+        assert "missing or invalid 'names' mapping" in str(exc.value)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+def test_reload_model_updates_metadata_and_classes():
+    service = YOLODetectorService()
+    initial_version = service.model_version
+    assert initial_version == "YOLOv8n-Coffee-ONNX-v1"
+
+    new_manifest_data = {
+        "num_classes": 3,
+        "names": {
+            "0": "hitam",
+            "1": "hitam-sebagian",
+            "2": "kulit-kopi-kecil",
+        },
+        "model_version": "YOLOv8n-Coffee-ONNX-v2-Experimental",
+    }
+
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(new_manifest_data, f)
+        temp_manifest = Path(f.name)
+
+    try:
+        success = service.reload_model(manifest_path=temp_manifest)
+        assert success is True
+        assert service.model_version == "YOLOv8n-Coffee-ONNX-v2-Experimental"
+        assert service.supported_classes == ["Full Black", "Partial Black", "Coffee Husk / Parchment"]
+    finally:
+        if temp_manifest.exists():
+            temp_manifest.unlink()
+        # Restore original engine state
+        service.reload_model()

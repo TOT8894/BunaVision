@@ -1,6 +1,7 @@
 import io
 import functools
 import logging
+from pathlib import Path
 from typing import Optional, List, Dict
 from PIL import Image
 
@@ -16,6 +17,7 @@ from vision.core.detection.config import (
 from vision.core.detection.labels import (
     classify_category,
     get_display_name,
+    SUPPORTED_CLASSES,
 )
 from vision.core.detection.preprocessing import prepare_image
 from vision.core.detection.annotator import annotate_image
@@ -44,13 +46,33 @@ class YOLODetectorService:
     def model_path(self):
         return getattr(self.engine, "model_path", None)
 
-    def reload_model(self) -> bool:
+    @property
+    def supported_classes(self) -> List[str]:
+        return getattr(self.engine, "supported_classes", SUPPORTED_CLASSES)
+
+    @property
+    def class_mapping(self) -> Dict[int, str]:
+        return getattr(self.engine, "class_mapping", {})
+
+    def reload_model(
+        self,
+        model_path: Optional[Path] = None,
+        manifest_path: Optional[Path] = None,
+        model_version: Optional[str] = None,
+    ) -> bool:
         # Safe swap: only replace working engine if new engine loads successfully
         try:
-            new_engine = create_engine()
+            new_engine = create_engine(
+                model_path=model_path,
+                manifest_path=manifest_path,
+                model_version=model_version,
+            )
             if new_engine.is_loaded:
                 self.engine = new_engine
-                logger.info("Model reload succeeded, new engine active")
+                logger.info(
+                    f"Model reload succeeded, new engine active "
+                    f"(version={new_engine.model_version}, classes={self.supported_classes})"
+                )
                 return True
             return False
         except Exception as e:

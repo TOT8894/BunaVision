@@ -1,28 +1,52 @@
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 import numpy as np
 from PIL import Image
 
 from vision.core.detection.config import (
     MODEL_ONNX_PATH,
+    CLASSES_JSON_PATH,
     MODEL_VERSION,
     DEFAULT_IOU_THRESHOLD,
 )
 from vision.core.detection.engines.base import RawDetection
-from vision.core.detection.labels import ONNX_CLASSES
+from vision.core.detection.labels import (
+    load_class_manifest,
+    get_display_name,
+)
 from vision.core.detection.preprocessing import preprocess_for_onnx
 from vision.core.detection.postprocessing import nms, rescale_boxes
 
 logger = logging.getLogger("bunavision.engine.onnx")
 
 class ONNXDetectionEngine:
-    def __init__(self, model_path: Optional[Path] = None):
+    def __init__(
+        self,
+        model_path: Optional[Path] = None,
+        manifest_path: Optional[Path] = None,
+        model_version: Optional[str] = None,
+    ):
         self.model_path = model_path or MODEL_ONNX_PATH
-        self.model_version = MODEL_VERSION
+        self.manifest_path = manifest_path or CLASSES_JSON_PATH
         self.engine_type = "onnx"
         self.session = None
         self.is_loaded = False
+
+        # Load and validate manifest bundle metadata
+        self.manifest = load_class_manifest(self.manifest_path)
+        self.class_mapping: Dict[int, str] = {
+            int(k): str(v) for k, v in self.manifest["names"].items()
+        }
+        self.model_version = (
+            model_version
+            or self.manifest.get("model_version")
+            or MODEL_VERSION
+        )
+        self.supported_classes: List[str] = [
+            get_display_name(name) for name in self.class_mapping.values()
+        ]
+
         self._load()
 
     def _load(self):
@@ -42,11 +66,11 @@ class ONNXDetectionEngine:
                 raise ValueError("ONNX model has no output tensors")
 
             out_shape = outputs[0].shape
-            expected_channels = 4 + len(ONNX_CLASSES)
+            expected_channels = 4 + len(self.class_mapping)
             if len(out_shape) != 3 or expected_channels not in out_shape:
                 raise ValueError(
                     f"Incompatible ONNX output shape {out_shape}. "
-                    f"Expected 3D tensor containing {expected_channels} channels (4 coordinates + {len(ONNX_CLASSES)} classes)."
+                    f"Expected 3D tensor containing {expected_channels} channels (4 coordinates + {len(self.class_mapping)} classes)."
                 )
 
             self.session = session
@@ -92,12 +116,12 @@ class ONNXDetectionEngine:
         for idx in keep_indices:
             cls_id = int(filtered_cls[idx])
             # Strict validation: only report supported classes, never invent defect_N
-            if cls_id not in ONNX_CLASSES:
+            if cls_id not in self.class_mapping:
                 logger.warning(f"Discarding unmapped class ID {cls_id} from model predictions")
                 continue
 
             coords = xyxy[idx]
-            raw_name = ONNX_CLASSES[cls_id]
+            raw_name = self.class_mapping[cls_id]
             detections.append(
                 RawDetection(
                     x1=float(coords[0]),

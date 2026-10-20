@@ -1,4 +1,7 @@
 import io
+import base64
+from pathlib import Path
+from unittest.mock import patch, MagicMock
 import numpy as np
 import pytest
 from PIL import Image
@@ -184,3 +187,56 @@ def test_reload_model_endpoint():
     data = response.json()
     assert data["reloaded"] is True
     assert data["engine"] == "onnx"
+
+def test_lifespan_fail_fast_on_unloaded_model():
+    mock_detector = MagicMock()
+    mock_detector.is_loaded = False
+    with patch("vision.service.main.get_detector", return_value=mock_detector):
+        with pytest.raises(RuntimeError) as exc_info:
+            with TestClient(app):
+                pass
+        assert "YOLO ONNX model failed to load at startup" in str(exc_info.value)
+
+@pytest.mark.parametrize("img_name,expected_min_defects", [
+    ("30_174.jpg", 3),
+    ("30_175.jpg", 2),
+    ("30_269.jpg", 3),
+])
+def test_golden_image_evaluation_regression(img_name: str, expected_min_defects: int):
+    golden_path = Path(__file__).parent.parent / "evaluation" / img_name
+    assert golden_path.exists(), f"Evaluation golden image {img_name} missing from vision/evaluation"
+    img_bytes = golden_path.read_bytes()
+
+    # 1. Direct detector service evaluation
+    result = yolo_service.detect(img_bytes, confidence_threshold=0.25)
+    assert result.model_version == "YOLOv8n-Coffee-ONNX-v1"
+    assert result.defect_beans >= expected_min_defects
+    assert result.total_beans >= expected_min_defects
+    assert result.annotated_image_base64 is not None
+
+    # Validate that annotated base64 payload is valid JPEG
+    decoded_bytes = base64.b64decode(result.annotated_image_base64)
+    with Image.open(io.BytesIO(decoded_bytes)) as annotated_img:
+        assert annotated_img.format == "JPEG"
+
+    # Validate bounding boxes, confidence scores and defect taxonomy
+    with Image.open(io.BytesIO(img_bytes)) as original:
+        orig_w, orig_h = original.size
+
+    for bean in result.detected_beans:
+        assert bean.class_name in yolo_service.supported_classes
+        assert bean.category in {"Primary Defect", "Secondary Defect"}
+        assert 0.25 <= bean.confidence <= 1.0
+        assert 0.0 <= bean.box.x1 < bean.box.x2 <= orig_w + 5.0
+        assert 0.0 <= bean.box.y1 < bean.box.y2 <= orig_h + 5.0
+
+    # 2. FastAPI endpoint regression test
+    response = client.post(
+        "/detect",
+        files={"file": (img_name, img_bytes, "image/jpeg")},
+        params={"confidence": 0.25}
+    )
+    assert response.status_code == 200
+    api_data = response.json()
+    assert api_data["defect_beans"] >= expected_min_defects
+    assert len(api_data["detected_beans"]) >= expected_min_defects
