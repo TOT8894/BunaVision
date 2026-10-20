@@ -1,10 +1,11 @@
-# Models Directory for BunaVision AI Engine
+# Vision Model Artifacts
 
-Place your trained YOLOv8 model weights here:
-- **`best.pt`**: Fine-tuned YOLOv8 nano model trained on the green coffee defect dataset using `train_yolov8_coffee.ipynb` in Google Colab.
+This directory stores trained weights and class manifests for defect detection:
 
-### How it works:
-When `best.pt` is placed in this directory:
-1. `app/services/yolo_detector.py` automatically detects and loads it.
-2. The API uses real neural network inference to predict bounding box coordinates and defect categories.
-3. If `best.pt` is not yet present, the service runs in demonstration/mock mode with graceful fallback so the backend never crashes.
+- **best.onnx**: Production ONNX Runtime weights (CPU inference, 640x640).
+- **best.pt**: PyTorch / Ultralytics fallback checkpoint.
+- **classes.json**: Defect class manifest mapping IDs to labels.
+
+### Model Loading
+1. The service looks for `best.onnx` first, then falls back to `best.pt`.
+2. Model loading is verified during service startup. If no weights are found, the service fails fast with an error. No mock or synthetic output is generated.

@@ -1,21 +1,15 @@
-# ============================================================
-# Vision service dependencies (split from the old monolith requirements.txt).
-# Owner: Vision member. The vision service takes image bytes in and
-# returns structured detections — it needs NO Gemini, S3, or DB libraries.
-# Pin exact versions before deployment.
-# ============================================================
+# Inference runtime
+onnxruntime==1.31.0
+numpy==2.5.3
+pillow==12.3.0
 
-# --- Inference (core) ---
-onnxruntime>=1.18.0
-numpy>=1.26.0
-pillow>=10.4.0
-# ultralytics>=8.2.0   # uncomment only if you keep the best.pt PyTorch fallback
+# HTTP service
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.0
+python-multipart==0.0.32
+anyio==4.15.1
 
-# --- Thin HTTP service wrapper (vision/service) ---
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-pydantic>=2.8.0
-python-multipart>=0.0.9
-
-# --- Dev / test ---
-pytest>=8.0.0
+# Testing & client
+pytest==9.1.1
+httpx==0.28.1
