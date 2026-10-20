@@ -2,7 +2,7 @@
 Unit tests for YOLO detector service and NMS.
 """
 import numpy as np
-from app.services.yolo_detector import yolo_service, nms
+from vision.core.yolo_detector import yolo_service, nms
 
 def test_classify_category_exact_matching():
     # Hitam -> Primary

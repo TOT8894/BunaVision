@@ -2,7 +2,7 @@
 # MIGRATED during repo restructure (monolith app/ -> 3 services).
 # Code is UNCHANGED. Imports below still reference the old `app.*`
 # monolith layout and WILL NOT RESOLVE until the owner rewires them.
-# TODO(owner): update `from app.schemas import ...` -> `from vision.core.schemas import ...`
+# TODO(owner): update `from vision.core.schemas  import ...` -> `from vision.core.schemas import ...`
 # ============================================================
 
 import io
@@ -14,16 +14,16 @@ from typing import List, Tuple, Dict, Optional
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from app.schemas import (
-    BoundingBox,
-    DetectedBean,
-    YOLODetectionResult
-)
+from vision.core.schemas  import (
+        BoundingBox,
+        DetectedBean,
+        YOLODetectionResult
+    )
 
 logger = logging.getLogger("bunavision.yolo")
 
 # Model Paths
-MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models"
+MODEL_DIR = Path(__file__).resolve().parent.parent / "model"
 MODEL_ONNX_PATH = MODEL_DIR / "best.onnx"
 MODEL_PT_PATH = MODEL_DIR / "best.pt"
 MODEL_PATH = MODEL_ONNX_PATH if MODEL_ONNX_PATH.exists() else MODEL_PT_PATH
@@ -183,7 +183,10 @@ class YOLODetectorService:
         elif self.is_loaded and self.engine_type == "torch":
             return self._predict_torch(pil_img, confidence_threshold)
         else:
-            return self._fallback_demo(pil_img)
+            raise RuntimeError(
+                f"YOLO detector model is not loaded (engine={self.engine_type}). "
+                f"Ensure 'best.onnx' or 'best.pt' exists in '{MODEL_DIR}'."
+            )
 
     def _predict_onnx(self, pil_img: Image.Image, conf_threshold: float) -> YOLODetectionResult:
         """Runs fast ONNX Runtime inference on CPU."""
@@ -367,17 +370,6 @@ class YOLODetectorService:
             defect_counts=counts,
             detected_beans=detected_beans,
             annotated_image_base64=img_b64
-        )
-
-    def _fallback_demo(self, pil_img: Image.Image) -> YOLODetectionResult:
-        return YOLODetectionResult(
-            model_version="Standby-Detector",
-            total_beans=0,
-            healthy_beans=-1,  # -1 = not determinable; model not loaded
-            defect_beans=0,
-            defect_counts={},
-            detected_beans=[],
-            annotated_image_base64=None
         )
 
 
