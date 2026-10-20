@@ -1,0 +1,30 @@
+# ============================================================
+# Backend service dependencies (split from the old monolith requirements.txt).
+# Owner: Backend members. The backend validates uploads, calls the vision
+# service over HTTP (httpx), calls Gemini, stores images (S3) and persists
+# results. It must NOT import onnxruntime — detection lives in the vision service.
+# Pin exact versions before deployment.
+# ============================================================
+
+# --- API framework ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.8.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.9
+
+# --- Image validation / decoding (server-side, per AGENTS.md) ---
+pillow>=10.4.0
+
+# --- Gemini multimodal analysis ---
+google-genai>=0.1.1
+
+# --- Calling the vision service ---
+httpx>=0.27.0
+requests>=2.31.0
+
+# --- AWS (S3 storage). NOT present in the old monolith deps — add when wiring storage. ---
+# boto3>=1.34.0   # TODO(backend owner): uncomment when the S3 adapter is implemented
+
+# --- Dev / test ---
+pytest>=8.0.0

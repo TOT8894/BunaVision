@@ -1,0 +1,11 @@
+{
+  "name": "bunavision-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BunaVision web frontend (React + TypeScript + Tailwind). Owner: Frontend members. Scaffolding placeholder — initialize with your chosen toolchain (e.g. Vite). Generate API types from contracts/backend-api/openapi.json.",
+  "scripts": {
+    "dev": "echo \"TODO(frontend): set up dev server\" && exit 1",
+    "build": "echo \"TODO(frontend): set up build\" && exit 1",
+    "test": "echo \"TODO(frontend): set up tests\" && exit 1"
+  }
+}

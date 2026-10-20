@@ -1,0 +1,34 @@
+# ============================================================
+# Local orchestration of all three BunaVision services.
+# Scaffolding only — service entry points are implemented by their owners.
+# Browser -> frontend -> backend -> vision (+ Gemini / S3 / DB from backend).
+# ============================================================
+services:
+  vision:
+    build: ./vision
+    ports:
+      - "9000:9000"
+    # Vision needs NO Gemini/S3/DB secrets — image bytes in, detections out.
+    # TODO(vision owner): mount or bake model weights; fail at startup if missing.
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # TODO(backend owner): read all config from env (no hardcoded secrets).
+      - VISION_SERVICE_URL=http://vision:9000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-}
+      # - AWS_* / DATABASE_URL when storage + db adapters are implemented
+    depends_on:
+      - vision
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - BACKEND_API_URL=http://backend:8000
+    depends_on:
+      - backend

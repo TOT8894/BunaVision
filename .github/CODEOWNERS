@@ -1,0 +1,25 @@
+# ============================================================
+# CODEOWNERS — Automatically requests reviews from code owners.
+# Team = 5 members: 2 frontend, 2 backend, 1 vision.
+# ============================================================
+
+# Frontend (2 members)
+/frontend/              @TOT8894 @mikimek23
+
+# Backend (2 members)
+/backend/               @worku404 @danieltuemay350-web
+/infra/                 @worku404
+
+# Vision (1 member)
+/vision/                @josi1219
+
+# Contracts need review from both sides of each boundary
+/contracts/backend-api/ @worku404 @TOT8894
+/contracts/vision-api/  @josi1219 @worku404
+
+# Shared docs / root rules
+/docs/                  @worku404 @TOT8894 @josi1219
+/AGENTS.md              @worku404 @TOT8894 @josi1219
+
+# CODEOWNERS file maintenance
+/.github/CODEOWNERS     @worku404
