@@ -1,0 +1,9 @@
+{
+  "model_version": "YOLOv8n-Coffee-ONNX-v1",
+  "total_beans": 0,
+  "healthy_beans": -1,
+  "defect_beans": 0,
+  "defect_counts": {},
+  "detected_beans": [],
+  "annotated_image_base64": null
+}

@@ -1,0 +1,46 @@
+{
+  "model_version": "YOLOv8n-Coffee-ONNX-v1",
+  "total_beans": 3,
+  "healthy_beans": -1,
+  "defect_beans": 3,
+  "defect_counts": {
+    "Full Black": 2,
+    "Partial Black": 1
+  },
+  "detected_beans": [
+    {
+      "box": {
+        "x1": 154.2,
+        "y1": 210.5,
+        "x2": 212.8,
+        "y2": 285.0
+      },
+      "class_name": "Full Black",
+      "confidence": 0.924,
+      "category": "Primary Defect"
+    },
+    {
+      "box": {
+        "x1": 340.0,
+        "y1": 180.2,
+        "x2": 405.6,
+        "y2": 248.7
+      },
+      "class_name": "Full Black",
+      "confidence": 0.887,
+      "category": "Primary Defect"
+    },
+    {
+      "box": {
+        "x1": 460.1,
+        "y1": 315.4,
+        "x2": 525.3,
+        "y2": 390.2
+      },
+      "class_name": "Partial Black",
+      "confidence": 0.815,
+      "category": "Secondary Defect"
+    }
+  ],
+  "annotated_image_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBD..."
+}

@@ -1,0 +1,301 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BunaVision - Defect Detection Service",
+    "description": "Standalone YOLOv8 ONNX defect detection for green coffee beans.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health",
+        "description": "Health check showing model loading engine and status.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/detect": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Detect Defects",
+        "description": "Detects visible defects in an uploaded coffee sample photo.\nReturns localized bounding boxes, defect counts, and annotated base64 image.",
+        "operationId": "detect_defects_detect_post",
+        "parameters": [
+          {
+            "name": "confidence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 0.95,
+              "minimum": 0.05,
+              "default": 0.25,
+              "description": "Confidence threshold",
+              "title": "Confidence"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_detect_defects_detect_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YOLODetectionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reload-model": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Reload Model",
+        "description": "Hot-reloads the YOLO weights from the model directory.",
+        "operationId": "reload_model_reload_model_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_detect_defects_detect_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "Green coffee bean sample photo",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_detect_defects_detect_post"
+      },
+      "BoundingBox": {
+        "properties": {
+          "x1": {
+            "type": "number",
+            "description": "Top-left X coordinate (pixels)",
+            "title": "X1"
+          },
+          "y1": {
+            "type": "number",
+            "description": "Top-left Y coordinate (pixels)",
+            "title": "Y1"
+          },
+          "x2": {
+            "type": "number",
+            "description": "Bottom-right X coordinate (pixels)",
+            "title": "X2"
+          },
+          "y2": {
+            "type": "number",
+            "description": "Bottom-right Y coordinate (pixels)",
+            "title": "Y2"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "title": "BoundingBox"
+      },
+      "DetectedBean": {
+        "properties": {
+          "box": {
+            "$ref": "#/components/schemas/BoundingBox",
+            "description": "Bounding box coordinates"
+          },
+          "class_name": {
+            "type": "string",
+            "description": "Canonical English defect class name",
+            "title": "Class Name"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "description": "Detection confidence score (0-1)",
+            "title": "Confidence"
+          },
+          "category": {
+            "type": "string",
+            "description": "'Primary Defect', 'Secondary Defect', or 'Healthy'",
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "box",
+          "class_name",
+          "confidence",
+          "category"
+        ],
+        "title": "DetectedBean"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "YOLODetectionResult": {
+        "properties": {
+          "model_version": {
+            "type": "string",
+            "description": "Model identifier, e.g. 'YOLOv8n-Coffee-ONNX-v1'",
+            "title": "Model Version"
+          },
+          "total_beans": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total defect instances localized by YOLO",
+            "title": "Total Beans"
+          },
+          "healthy_beans": {
+            "type": "integer",
+            "minimum": -1,
+            "description": "Healthy bean count. -1 means 'not determinable by YOLO' — this model was trained only on defect classes and cannot count healthy beans. Gemini estimates the real value from the full image.",
+            "title": "Healthy Beans"
+          },
+          "defect_beans": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of defective bean instances",
+            "title": "Defect Beans"
+          },
+          "defect_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "description": "Raw count per defect class e.g. {'Full Black': 2}",
+            "title": "Defect Counts"
+          },
+          "detected_beans": {
+            "items": {
+              "$ref": "#/components/schemas/DetectedBean"
+            },
+            "type": "array",
+            "description": "Full list of bounding box detections",
+            "title": "Detected Beans"
+          },
+          "annotated_image_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Base64-encoded JPEG with colored bounding boxes drawn",
+            "title": "Annotated Image Base64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_version",
+          "total_beans",
+          "healthy_beans",
+          "defect_beans"
+        ],
+        "title": "YOLODetectionResult"
+      }
+    }
+  }
+}

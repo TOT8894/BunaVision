@@ -1,24 +1,57 @@
-# Vision API contract (Backend ⇄ Vision)
+# Vision API Contract (Backend ⇄ Vision)
 
-**Owner:** Vision member. **Consumer:** Backend members.
+**Owner:** Vision member (`@josi1219`).  
+**Consumer:** Backend members (`@worku404`, `@danieltuemay350-web`).
 
-This is the single source of truth for the HTTP inference API between the backend and the vision service. The backend generates its vision-client models from the `openapi.json` here — it does **not** import vision's Python code.
+This directory contains the **single source of truth** for the HTTP inference API between the backend and the vision service. The backend uses the schemas and examples here to implement its vision client (`backend/app/adapters/vision_client/`) without importing code from `vision/`.
 
-## What goes here
+---
 
-- `openapi.json` — the OpenAPI document for the vision inference API (image bytes in → structured detections out, including model version).
-- `examples/` — example detection responses so the backend can build and mock before the vision service is live.
+## 1. Committed Artifacts
 
-## The contract must document
+* **[`openapi.json`](./openapi.json)**: The official OpenAPI 3.1.0 schema generated directly from [`vision/service/main.py`](../../vision/service/main.py). It formally defines:
+  - `POST /detect`: Accepts multipart/form-data images, returns `YOLODetectionResult`.
+  - `GET /health`: Health check, engine type, and model status.
+  - `POST /reload-model`: Administrative model reload endpoint.
+* **[`examples/detection_success.json`](./examples/detection_success.json)**: Concrete JSON payload returned when defects are detected (localized bounding boxes, defect counts, model version, and annotated base64 preview).
+* **[`examples/detection_zero_defects.json`](./examples/detection_zero_defects.json)**: Exact JSON payload returned when an image has zero defects (`defect_beans = 0`, `detected_beans = []`, `annotated_image_base64 = null`).
 
-- The output schema (currently `BoundingBox`, `DetectedBean`, `YOLODetectionResult` — see `vision/core/schemas.py`).
-- Class names and the fixed class/label map (currently 3 classes: Full Black, Partial Black, Coffee Husk / Parchment).
-- Confidence range, coordinate format and units (pixel vs normalized, box convention), and exactly what is counted.
-- The model version field.
+---
 
-## Rules
+## 2. How to Re-generate `openapi.json`
 
-- On day one, commit a stub endpoint + example JSON so the backend can start in parallel.
-- Any change here affects the backend. Propose it first, update this contract in the **same change** as the vision code, and get review from both sides (see `/.github/CODEOWNERS`).
+Whenever endpoints or schemas in `vision/` are modified, update `openapi.json` using one of two methods:
 
-> TODO(vision owner): generate and commit `openapi.json` + examples from the thin service in `vision/service/`.
+### Option 1 (Via Browser)
+1. Start the vision service:
+   ```bash
+   uvicorn vision.service.main:app --port 9000
+   ```
+2. Open [http://localhost:9000/openapi.json](http://localhost:9000/openapi.json) in your browser.
+3. Save the response directly into `contracts/vision-api/openapi.json`.
+
+### Option 2 (One-Line CLI Command)
+From the repository root:
+
+* **Windows PowerShell:**
+  ```powershell
+  python -c "import json; from vision.service.main import app; print(json.dumps(app.openapi(), indent=2))" | Out-File -Encoding utf8 contracts/vision-api/openapi.json
+  ```
+
+* **Linux / macOS (Bash):**
+  ```bash
+  python3 -c "import json; from vision.service.main import app; print(json.dumps(app.openapi(), indent=2))" > contracts/vision-api/openapi.json
+  ```
+
+---
+
+## 3. Schema & Labeling Rules
+
+Per [vision/AGENTS.md](../../vision/AGENTS.md):
+- **Model Version:** Every response must include `model_version: "YOLOv8n-Coffee-ONNX-v1"`.
+- **Supported Defect Classes:** Currently 3 classes:
+  - `Full Black` (Primary Defect)
+  - `Partial Black` (Secondary Defect)
+  - `Coffee Husk / Parchment` (Secondary Defect)
+- **Healthy Beans:** YOLO does not localize healthy beans (`healthy_beans = -1`). Total sample count is estimated by Gemini in the backend.
+- **Contract Changes:** Any change to this directory affects the backend. Propose it first, update this contract in the same pull request as the vision code, and request review from `@worku404` or `@danieltuemay350-web`.
