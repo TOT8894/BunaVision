@@ -80,4 +80,4 @@ This repo was recently restructured from a single `app/` monolith into the three
 - [`AGENTS.md`](AGENTS.md) — shared engineering rules.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — target architecture & open decisions.
 - [`docs/MIGRATION.md`](docs/MIGRATION.md) — the monolith→3-service move + what each member still implements.
-- [`BunaVision.md`](BunaVision.md) — full product specification.
+- [`docs/BunaVision.md`](docs/BunaVision.md) — full product specification.
