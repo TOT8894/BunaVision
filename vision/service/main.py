@@ -1,19 +1,19 @@
-"""
-vision/service/main.py — Standalone Vision Inference Service
-===========================================================
-HTTP wrapper around vision.core.yolo_detector.
-Runs independently on port 9000.
-"""
-
 import io
 import logging
-from typing import Optional
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, status
+from contextlib import asynccontextmanager
+
+import anyio
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
-from vision.core.yolo_detector import yolo_service, MODEL_PATH
-from vision.core.schemas import YOLODetectionResult
+from vision.core.schemas import YOLODetectionResult, HealthResponse
+from vision.core.detection import (
+    YOLODetectorService,
+    get_detector,
+    SUPPORTED_CLASSES,
+)
+from vision.core.detection.config import MODEL_ONNX_PATH
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,12 +21,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger("bunavision.vision_service")
 
+MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
+SUPPORTED_FORMATS = {"JPEG", "PNG", "WEBP"}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    detector = get_detector()
+    if not detector.is_loaded:
+        raise RuntimeError(
+            f"YOLO ONNX model failed to load at startup. "
+            f"Ensure '{MODEL_ONNX_PATH.name}' exists in '{MODEL_ONNX_PATH.parent}'."
+        )
+    logger.info(
+        f"Vision service ready - engine={detector.engine_type}, "
+        f"model_version={detector.model_version}"
+    )
+    yield
+
 app = FastAPI(
     title="BunaVision - Defect Detection Service",
     description="Standalone YOLOv8 ONNX defect detection for green coffee beans.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -36,32 +54,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
-SUPPORTED_FORMATS = {"JPEG", "PNG", "WEBP"}
-
-
-@app.get("/health", tags=["Health"])
-async def health():
-    """Health check showing model loading engine and status."""
-    return {
-        "status": "healthy" if yolo_service.is_loaded else "unavailable",
-        "service": "vision-detector",
-        "engine": yolo_service.engine_type,
-        "model_loaded": yolo_service.is_loaded,
-        "model_path": str(MODEL_PATH) if yolo_service.is_loaded else None,
-        "supported_classes": list(yolo_service.CLASS_NAME_MAP.values())
-    }
-
+@app.get("/health", response_model=HealthResponse, tags=["Health"])
+async def health(detector: YOLODetectorService = Depends(get_detector)):
+    return HealthResponse(
+        status="healthy" if detector.is_loaded else "unavailable",
+        service="vision-detector",
+        engine=detector.engine_type,
+        model_loaded=detector.is_loaded,
+        model_path=str(detector.model_path) if detector.model_path else None,
+        supported_classes=detector.supported_classes,
+    )
 
 @app.post("/detect", response_model=YOLODetectionResult, tags=["Inference"])
 async def detect_defects(
     file: UploadFile = File(..., description="Green coffee bean sample photo"),
-    confidence: float = Query(0.25, ge=0.05, le=0.95, description="Confidence threshold")
+    confidence: float = Query(0.25, ge=0.05, le=0.95, description="Confidence threshold"),
+    detector: YOLODetectorService = Depends(get_detector),
 ):
-    """
-    Detects visible defects in an uploaded coffee sample photo.
-    Returns localized bounding boxes, defect counts, and annotated base64 image.
-    """
     image_bytes = await file.read()
     if len(image_bytes) == 0:
         raise HTTPException(
@@ -82,6 +91,8 @@ async def detect_defects(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail=f"Unsupported image format: {pil_img.format}. Supported: {SUPPORTED_FORMATS}"
             )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -89,7 +100,9 @@ async def detect_defects(
         )
 
     try:
-        result = yolo_service.detect(image_bytes, confidence_threshold=confidence)
+        result = await anyio.to_thread.run_sync(
+            lambda: detector.detect(image_bytes, confidence_threshold=confidence)
+        )
         return result
     except RuntimeError as re:
         logger.error(f"Model error: {re}")
@@ -104,13 +117,16 @@ async def detect_defects(
             detail="Inference processing failed."
         )
 
-
 @app.post("/reload-model", tags=["Admin"])
-async def reload_model():
-    """Hot-reloads the YOLO weights from the model directory."""
-    loaded = yolo_service.reload_model()
+async def reload_model(detector: YOLODetectorService = Depends(get_detector)):
+    loaded = await anyio.to_thread.run_sync(detector.reload_model)
+    if not loaded:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Model reload failed. Active model retained."
+        )
     return {
-        "reloaded": loaded,
-        "engine": yolo_service.engine_type,
-        "model_path": str(MODEL_PATH)
+        "reloaded": True,
+        "engine": detector.engine_type,
+        "model_path": str(detector.model_path) if detector.model_path else None,
     }
