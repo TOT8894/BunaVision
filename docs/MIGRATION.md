@@ -39,12 +39,12 @@ Old `app/`, `models/`, `notebooks/`, `tests/` directories were removed.
 Nothing below was written for you — these are the wiring/finishing tasks the restructure intentionally left to the owners.
 
 ### Vision (1 member) — `vision/`
-- [ ] Rewire `core/yolo_detector.py` import: `from app.schemas` → `from vision.core.schemas`.
-- [ ] Build the thin `vision/service/` FastAPI wrapper over `core/` (the `/detect` + `/health` endpoints moved here). No detection logic in the service layer.
-- [ ] **Remove the silent mock fallback** (`_fallback_demo` in `yolo_detector.py`). Fail at startup if weights are missing — do not serve fabricated detections (root AGENTS.md invariant).
-- [ ] Decide where model weights live (Git LFS or S3), not plain git.
-- [ ] Publish `contracts/vision-api/openapi.json` + examples (stub first so the backend can build in parallel).
-- [ ] Add a model-version field to every response.
+- [x] Rewire `core/yolo_detector.py` import and extract modular detection architecture into `vision/core/detection/`.
+- [x] Build the thin `vision/service/` FastAPI wrapper over `core/` (`/detect`, `/health`, and `/reload-model`). Zero detection logic in the service layer.
+- [x] **Remove the silent mock fallback** (`_fallback_demo` completely eliminated; fail-fast enforced in core engines and FastAPI lifespan).
+- [x] Establish pure ONNX Runtime serving path (`best.onnx`); retain `best.pt` exclusively for retraining in Colab/notebooks.
+- [x] Publish `contracts/vision-api/openapi.json` + examples (synchronized OpenAPI 3.1.0 schema with typed HealthResponse and bare Base64).
+- [x] Add dynamic `model_version` and class manifest validation to every response.
 
 ### Backend (2 members) — `backend/` + `infra/`
 - [ ] Rewire imports in `app/api/main.py`, `app/adapters/gemini/gemini_vision.py`, `app/core/config.py` away from the old `app.*` monolith paths.
@@ -77,6 +77,6 @@ These were never in the monolith and were **not** scaffolded with logic — only
 - S3 storage adapter and the database layer (`backend/app/adapters/storage`, `.../db`).
 - Authentication / user accounts (spec leaves this undecided).
 - The entire frontend application (only `package.json` + empty `src/` folders exist).
-- The vision HTTP service wrapper (`vision/service/` is empty).
-- Both OpenAPI contract documents (`contracts/*/openapi.json`).
+- The vision HTTP service wrapper (`vision/service/` is fully implemented and tested).
+- Backend OpenAPI contract document (`contracts/backend-api/openapi.json`; `contracts/vision-api/` is published and tested).
 - `infra/` AWS definitions.

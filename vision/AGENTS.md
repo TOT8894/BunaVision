@@ -25,7 +25,7 @@ This core/service split resolves the old "no FastAPI in vision" concern: the lib
 
 ## Honesty and safety (vision-specific)
 
-- **No silent mock mode.** If model weights are missing or fail to load, the service must **fail at startup**, not serve fabricated/demo detections. (The migrated `core/yolo_detector.py` currently has a `_fallback_demo` path — remove it.)
+- **No silent mock mode.** If model weights are missing or fail to load, the service must **fail at startup**, not serve fabricated/demo detections. The legacy `_fallback_demo` path was eliminated; fail-loud is enforced across core engines, reload, and FastAPI lifespan startup.
 - "Zero detections" is a valid, real result and must be distinguishable from "inference failed".
 - Report only the classes the model truly supports. Never imply coverage of defect classes the model was not trained on.
 - Vision never receives or needs AWS credentials, user data, S3 keys, or Gemini keys. It gets image bytes and returns detections.

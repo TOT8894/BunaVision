@@ -6,7 +6,8 @@
     "2": "kulit-kopi-kecil"
   },
   "dataset_source": "Roboflow / lulus-vpibo / green-coffee-bean-defects v14",
-  "dataset_license": "",
+  "dataset_license": "CC BY 4.0",
   "checkpoint": "yolov8n.pt",
+  "model_version": "YOLOv8n-Coffee-ONNX-v1",
   "imgsz": 640
 }

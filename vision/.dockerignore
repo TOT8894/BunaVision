@@ -1,0 +1,42 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter notebooks & training artifacts
+*.ipynb
+.ipynb_checkpoints/
+training/
+
+# Tests & evaluation suites
+tests/
+evaluation/
+.pytest_cache/
+.coverage
+htmlcov/
+pytest.ini
+
+# Wheel caches & build artifacts
+wheels/
+*.whl
+build/
+dist/
+*.egg-info/
+
+# Git and OS metadata
+.git/
+.gitignore
+.dockerignore
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Documentation
+*.md
