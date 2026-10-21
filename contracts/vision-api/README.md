@@ -13,7 +13,7 @@ This directory contains the **single source of truth** for the HTTP inference AP
   - `POST /detect`: Accepts multipart/form-data images, returns `YOLODetectionResult`.
   - `GET /health`: Health check, engine type, and model status.
   - `POST /reload-model`: Administrative model reload endpoint.
-* **[`examples/detection_success.json`](./examples/detection_success.json)**: Concrete JSON payload returned when defects are detected (localized bounding boxes, defect counts, model version, and annotated base64 preview).
+* **[`examples/detection_success.json`](./examples/detection_success.json)**: Concrete JSON payload returned when defects are detected (localized bounding boxes, defect counts, model version, and annotated bare base64 JPEG preview).
 * **[`examples/detection_zero_defects.json`](./examples/detection_zero_defects.json)**: Exact JSON payload returned when an image has zero defects (`defect_beans = 0`, `detected_beans = []`, `annotated_image_base64 = null`).
 
 ---

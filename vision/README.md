@@ -190,10 +190,13 @@ Run the test suite with pytest:
 pytest vision/tests/ -v
 ```
 
-The 21 tests cover:
-- Exact defect classification
-- Class-aware and basic NMS
-- Letterbox image padding and box rescaling
-- Resolution-scaled annotation drawing
-- Loud startup failure when weights are missing
-- Endpoints: /health, /detect (valid, empty, corrupt, unsupported formats), and /reload-model
+The 32 tests cover:
+- Exact defect classification and canonical taxonomy mapping
+- Class-aware NMS and high-resolution (>4096px) coordinate suppression verification
+- Letterbox image padding (neutral gray 114) and bounding box rescaling
+- Resolution-scaled visual annotation drawing with contrast background pills
+- Strict manifest validation (loud failure on missing or malformed classes.json, zero silent fallback)
+- Safe model bundle hot-reloading (preserving active engine and metadata if reload fails)
+- Lifespan fail-fast integration test verifying startup abortion when weights are missing
+- Golden-image regression testing on real green coffee bean evaluation photos (vision/evaluation/*.jpg)
+- HTTP endpoints: /health (strongly typed schema), /detect (valid, empty, corrupt, and unsupported formats), and /reload-model
