@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "INVALID_IMAGE",
+    "message": "The uploaded file is not a readable image.",
+    "request_id": "9b1f0c5e7a2d4e6f8a3b1c2d4e5f6a7b",
+    "assessment_id": null
+  }
+}

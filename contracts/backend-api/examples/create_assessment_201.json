@@ -1,0 +1,65 @@
+{
+  "assessment_id": "asmt_0f3c2a9e5b7d4c1a8e6f90b2d4a71c35",
+  "status": "completed",
+  "created_at": "2026-10-21T08:00:00Z",
+  "processing_time_ms": 2140,
+  "result": {
+    "model_version": "YOLOv8n-Coffee-ONNX-v1",
+    "summary": {
+      "detection_count": 3,
+      "primary_detection_count": 1,
+      "secondary_detection_count": 2,
+      "by_class": [
+        {
+          "defect": {"key": "partial_black", "name": "Partial Black", "category": "secondary"},
+          "count": 2,
+          "mean_confidence": 0.7
+        },
+        {
+          "defect": {"key": "full_black", "name": "Full Black", "category": "primary"},
+          "count": 1,
+          "mean_confidence": 0.9
+        }
+      ]
+    },
+    "detections": [
+      {
+        "defect": {"key": "full_black", "name": "Full Black", "category": "primary"},
+        "confidence": 0.9,
+        "box": {"x1": 120.0, "y1": 88.5, "x2": 164.0, "y2": 131.0}
+      }
+    ],
+    "coverage": {
+      "scanned": [
+        {"key": "full_black", "name": "Full Black", "category": "primary"},
+        {"key": "partial_black", "name": "Partial Black", "category": "secondary"},
+        {"key": "parchment_husk", "name": "Coffee Husk / Parchment", "category": "secondary"}
+      ],
+      "not_scanned": [
+        {"key": "full_sour", "name": "Full Sour / Stinker", "category": "primary"}
+      ]
+    },
+    "limitations": [
+      {
+        "code": "PRELIMINARY_AI_ASSESSMENT",
+        "message": "Preliminary AI screening of a photograph. This is not an official ECX or SCA grade."
+      },
+      {
+        "code": "PARTIAL_CLASS_COVERAGE",
+        "message": "Only 3 of 13 ECX defect classes are scanned (Full Black, Partial Black, Coffee Husk / Parchment). Defects in the other 10 classes are not detected, so real defect counts may be higher."
+      }
+    ],
+    "advisory": {
+      "generator_model": "example-gemini-model",
+      "summary": {"en": "Example summary.", "am": "ምሳሌ ማጠቃለያ።"},
+      "recommendations": [
+        {"en": "Verify the sample manually.", "am": "ናሙናውን በእጅ ያረጋግጡ።"}
+      ]
+    },
+    "images": {
+      "original_url": "https://example-bucket.s3.amazonaws.com/assessments/asmt_0f3c.../original.jpg?X-Amz-Expires=900",
+      "annotated_url": "https://example-bucket.s3.amazonaws.com/assessments/asmt_0f3c.../annotated.jpg?X-Amz-Expires=900",
+      "expires_in_s": 900
+    }
+  }
+}
