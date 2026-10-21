@@ -12,14 +12,15 @@
           "Health"
         ],
         "summary": "Health",
-        "description": "Health check showing model loading engine and status.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
               }
             }
           }
@@ -32,7 +33,6 @@
           "Inference"
         ],
         "summary": "Detect Defects",
-        "description": "Detects visible defects in an uploaded coffee sample photo.\nReturns localized bounding boxes, defect counts, and annotated base64 image.",
         "operationId": "detect_defects_detect_post",
         "parameters": [
           {
@@ -43,10 +43,11 @@
               "type": "number",
               "maximum": 0.95,
               "minimum": 0.05,
-              "default": 0.25,
               "description": "Confidence threshold",
+              "default": 0.25,
               "title": "Confidence"
-            }
+            },
+            "description": "Confidence threshold"
           }
         ],
         "requestBody": {
@@ -89,7 +90,6 @@
           "Admin"
         ],
         "summary": "Reload Model",
-        "description": "Hot-reloads the YOLO weights from the model directory.",
         "operationId": "reload_model_reload_model_post",
         "responses": {
           "200": {
@@ -110,9 +110,9 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
-            "description": "Green coffee bean sample photo",
-            "title": "File"
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Green coffee bean sample photo"
           }
         },
         "type": "object",
@@ -125,23 +125,23 @@
         "properties": {
           "x1": {
             "type": "number",
-            "description": "Top-left X coordinate (pixels)",
-            "title": "X1"
+            "title": "X1",
+            "description": "Top-left X coordinate (pixels)"
           },
           "y1": {
             "type": "number",
-            "description": "Top-left Y coordinate (pixels)",
-            "title": "Y1"
+            "title": "Y1",
+            "description": "Top-left Y coordinate (pixels)"
           },
           "x2": {
             "type": "number",
-            "description": "Bottom-right X coordinate (pixels)",
-            "title": "X2"
+            "title": "X2",
+            "description": "Bottom-right X coordinate (pixels)"
           },
           "y2": {
             "type": "number",
-            "description": "Bottom-right Y coordinate (pixels)",
-            "title": "Y2"
+            "title": "Y2",
+            "description": "Bottom-right Y coordinate (pixels)"
           }
         },
         "type": "object",
@@ -161,20 +161,20 @@
           },
           "class_name": {
             "type": "string",
-            "description": "Canonical English defect class name",
-            "title": "Class Name"
+            "title": "Class Name",
+            "description": "Canonical English defect class name"
           },
           "confidence": {
             "type": "number",
             "maximum": 1.0,
             "minimum": 0.0,
-            "description": "Detection confidence score (0-1)",
-            "title": "Confidence"
+            "title": "Confidence",
+            "description": "Detection confidence score (0-1)"
           },
           "category": {
             "type": "string",
-            "description": "'Primary Defect', 'Secondary Defect', or 'Healthy'",
-            "title": "Category"
+            "title": "Category",
+            "description": "'Primary Defect', 'Secondary Defect', or 'Healthy'"
           }
         },
         "type": "object",
@@ -199,6 +199,58 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "'healthy' or 'unavailable'"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service",
+            "description": "Service identifier"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine",
+            "description": "Inference engine type: 'onnx' or 'none'"
+          },
+          "model_loaded": {
+            "type": "boolean",
+            "title": "Model Loaded",
+            "description": "Whether model weights are loaded"
+          },
+          "model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Path",
+            "description": "Path to loaded model weights"
+          },
+          "supported_classes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Classes",
+            "description": "Defect classes this model detects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "engine",
+          "model_loaded"
+        ],
+        "title": "HealthResponse"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -222,6 +274,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
@@ -236,42 +295,42 @@
         "properties": {
           "model_version": {
             "type": "string",
-            "description": "Model identifier, e.g. 'YOLOv8n-Coffee-ONNX-v1'",
-            "title": "Model Version"
+            "title": "Model Version",
+            "description": "Model identifier, e.g. 'YOLOv8n-Coffee-ONNX-v1'"
           },
           "total_beans": {
             "type": "integer",
-            "minimum": 0,
-            "description": "Total defect instances localized by YOLO",
-            "title": "Total Beans"
+            "minimum": 0.0,
+            "title": "Total Beans",
+            "description": "Total defect instances localized by YOLO"
           },
           "healthy_beans": {
             "type": "integer",
-            "minimum": -1,
-            "description": "Healthy bean count. -1 means 'not determinable by YOLO' — this model was trained only on defect classes and cannot count healthy beans. Gemini estimates the real value from the full image.",
-            "title": "Healthy Beans"
+            "minimum": -1.0,
+            "title": "Healthy Beans",
+            "description": "Healthy bean count. -1 means 'not determinable by YOLO' \u2014 this model was trained only on defect classes and cannot count healthy beans. The backend estimates the real value from the full image."
           },
           "defect_beans": {
             "type": "integer",
-            "minimum": 0,
-            "description": "Count of defective bean instances",
-            "title": "Defect Beans"
+            "minimum": 0.0,
+            "title": "Defect Beans",
+            "description": "Count of defective bean instances"
           },
           "defect_counts": {
             "additionalProperties": {
               "type": "integer"
             },
             "type": "object",
-            "description": "Raw count per defect class e.g. {'Full Black': 2}",
-            "title": "Defect Counts"
+            "title": "Defect Counts",
+            "description": "Raw count per defect class e.g. {'Full Black': 2}"
           },
           "detected_beans": {
             "items": {
               "$ref": "#/components/schemas/DetectedBean"
             },
             "type": "array",
-            "description": "Full list of bounding box detections",
-            "title": "Detected Beans"
+            "title": "Detected Beans",
+            "description": "Full list of bounding box detections"
           },
           "annotated_image_base64": {
             "anyOf": [
@@ -282,9 +341,8 @@
                 "type": "null"
               }
             ],
-            "default": null,
-            "description": "Base64-encoded JPEG with colored bounding boxes drawn",
-            "title": "Annotated Image Base64"
+            "title": "Annotated Image Base64",
+            "description": "Base64-encoded JPEG with colored bounding boxes drawn"
           }
         },
         "type": "object",
