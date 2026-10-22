@@ -3,7 +3,7 @@ Pydantic schemas shared by vision.core and vision.service.
 Defines the inference contract shapes for defect detection.
 """
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 from pydantic import BaseModel, Field
 
 class BoundingBox(BaseModel):
@@ -55,5 +55,13 @@ class DomainRejectionDetail(BaseModel):
     confidence: float = Field(..., description="Validator confidence score that image is coffee")
     threshold: float = Field(..., description="Required threshold for coffee classification")
 
-class DomainRejectionResponse(BaseModel):
-    detail: DomainRejectionDetail
+class HTTPErrorResponse(BaseModel):
+    detail: Union[str, DomainRejectionDetail] = Field(
+        ...,
+        description="Error message or structured domain-rejection detail",
+    )
+
+class ReloadModelResponse(BaseModel):
+    reloaded: bool
+    engine: str
+    model_path: Optional[str] = None

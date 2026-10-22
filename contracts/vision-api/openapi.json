@@ -72,11 +72,51 @@
             }
           },
           "400": {
-            "description": "Domain validation failed (image is not green coffee beans)",
+            "description": "Empty, invalid, or non-coffee image",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DomainRejectionResponse"
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Image exceeds the upload size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported image format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Inference processing failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Inference model unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
                 }
               }
             }
@@ -106,7 +146,19 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ReloadModelResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Model reload failed; active model bundle retained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
               }
             }
           }
@@ -228,17 +280,26 @@
         ],
         "title": "DomainRejectionDetail"
       },
-      "DomainRejectionResponse": {
+      "HTTPErrorResponse": {
         "properties": {
           "detail": {
-            "$ref": "#/components/schemas/DomainRejectionDetail"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/DomainRejectionDetail"
+              }
+            ],
+            "title": "Detail",
+            "description": "Error message or structured domain-rejection detail"
           }
         },
         "type": "object",
         "required": [
           "detail"
         ],
-        "title": "DomainRejectionResponse"
+        "title": "HTTPErrorResponse"
       },
       "HTTPValidationError": {
         "properties": {
@@ -304,6 +365,35 @@
           "model_loaded"
         ],
         "title": "HealthResponse"
+      },
+      "ReloadModelResponse": {
+        "properties": {
+          "reloaded": {
+            "type": "boolean",
+            "title": "Reloaded"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine"
+          },
+          "model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reloaded",
+          "engine"
+        ],
+        "title": "ReloadModelResponse"
       },
       "ValidationError": {
         "properties": {

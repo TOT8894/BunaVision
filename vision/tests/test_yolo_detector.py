@@ -189,6 +189,23 @@ def test_reload_model_endpoint():
     data = response.json()
     assert data["reloaded"] is True
     assert data["engine"] == "onnx"
+    assert data["model_path"].endswith("best.onnx")
+
+def test_openapi_documents_service_error_responses():
+    openapi = app.openapi()
+    detect_responses = openapi["paths"]["/detect"]["post"]["responses"]
+
+    for status_code in ("400", "413", "415", "500", "503"):
+        schema = detect_responses[status_code]["content"]["application/json"]["schema"]
+        assert schema == {"$ref": "#/components/schemas/HTTPErrorResponse"}
+
+    reload_responses = openapi["paths"]["/reload-model"]["post"]["responses"]
+    assert reload_responses["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ReloadModelResponse"
+    }
+    assert reload_responses["500"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/HTTPErrorResponse"
+    }
 
 def test_lifespan_fail_fast_on_unloaded_model():
     mock_detector = MagicMock()

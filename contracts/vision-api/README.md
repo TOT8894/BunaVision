@@ -10,11 +10,11 @@ This directory contains the **single source of truth** for the HTTP inference AP
 ## 1. Committed Artifacts
 
 * **[`openapi.json`](./openapi.json)**: The official OpenAPI 3.1.0 schema generated directly from [`vision/service/main.py`](../../vision/service/main.py). It formally defines:
-  - `POST /detect`: Accepts multipart/form-data images, returns `YOLODetectionResult`.
+  - `POST /detect`: Accepts multipart/form-data images and documents success plus image-validation, domain-rejection, and inference-error responses.
   - `GET /health`: Health check, engine type, and model status.
-  - `POST /reload-model`: Administrative model reload endpoint.
-* **[`examples/detection_success.json`](./examples/detection_success.json)**: Concrete JSON payload returned when defects are detected (localized boxes, counts, both model versions, domain-validation confidence, and annotated bare Base64 JPEG preview).
-* **[`examples/detection_zero_defects.json`](./examples/detection_zero_defects.json)**: JSON payload returned for an accepted coffee image with zero defect detections.
+  - `POST /reload-model`: Administrative model reload endpoint with typed success and failure responses.
+* **[`examples/detection_success.json`](./examples/detection_success.json)**: Measured response for `vision/evaluation/30_174.jpg` at confidence threshold `0.25` (five detections). The annotation Base64 is shortened for documentation and is not decodable.
+* **[`examples/detection_zero_defects.json`](./examples/detection_zero_defects.json)**: Measured response for the same accepted coffee image at confidence threshold `0.95`, which produces zero defect detections.
 
 ---
 
@@ -48,11 +48,13 @@ From the repository root:
 ## 3. Schema & Labeling Rules
 
 Per [vision/AGENTS.md](../../vision/AGENTS.md):
-- **Model Version:** Every response must include `model_version: "YOLOv8n-Coffee-ONNX-v1"`.
-- **Validator Version:** Every successful detection response includes `validator_version`, identifying the active coffee-domain model.
+- **Model Versions:** Every successful `/detect` response includes `model_version` for YOLO and `validator_version` for the coffee-domain model.
+- **Confidence:** `confidence` in each detection and `coffee_confidence` are model confidence scores, not measures of correctness.
+- **Bounding Boxes:** `x1`, `y1`, `x2`, and `y2` are pixel coordinates in the original image; the first pair is the top-left and the second pair is the bottom-right.
+- **Counts:** `total_beans` and `defect_beans` count localized defect instances. `healthy_beans = -1` means the detector does not count healthy beans.
 - **Supported Defect Classes:** Currently 3 classes:
   - `Full Black` (Primary Defect)
   - `Partial Black` (Secondary Defect)
   - `Coffee Husk / Parchment` (Secondary Defect)
-- **Healthy Beans:** YOLO does not localize healthy beans (`healthy_beans = -1`). Total sample count is estimated by Gemini in the backend.
+- **Healthy Beans:** YOLO does not localize healthy beans (`healthy_beans = -1`). Total sample count is estimated by the backend.
 - **Contract Changes:** Any change to this directory affects the backend. Propose it first, update this contract in the same pull request as the vision code, and request review from `@worku404` or `@danieltuemay350-web`.

@@ -9,6 +9,7 @@ Built with FastAPI, ONNX Runtime, and a fine-tuned YOLOv8 Nano model, this servi
 - Decoupled: Contains no AWS SDKs, no databases, and no Gemini multimodal dependencies. All storage, grading rules, and user workflows live in backend/.
 - Pure ONNX Runtime: Serves inference with CPU-optimized ONNX Runtime (no heavy PyTorch runtime dependencies in production).
 - Two-stage inference: A MobileNetV3-Small domain validator checks for coffee images before YOLO defect detection.
+- Decision support only: Results are preliminary AI predictions, not official grading.
 - Letterbox Preprocessing: Non-square images are padded with neutral gray (114, 114, 114) to preserve bean aspect ratios during inference.
 - Class-Aware NMS: Eliminates overlapping duplicate boxes per defect class, ensuring adjacent defects of different types are not suppressed.
 - Fail-Loud Startup: Both ONNX models and their configuration files are validated at startup. Missing or incompatible artifacts prevent the service from starting.
@@ -18,7 +19,7 @@ Built with FastAPI, ONNX Runtime, and a fine-tuned YOLOv8 Nano model, this servi
 ```text
 vision/
 ├── core/
-│   ├── schemas.py                 # Pydantic schemas (BoundingBox, DetectedBean, YOLODetectionResult, HealthResponse)
+│   ├── schemas.py                 # Pydantic schemas for detections, health, errors, and reload
 │   ├── yolo_detector.py           # Compatibility shim re-exporting core API
 │   └── detection/                 # Modular detection pipeline
 │       ├── config.py              # Constants, paths, thresholds, model version
@@ -124,12 +125,14 @@ docker build -t bunavision-vision:latest -f Dockerfile .
 docker run -p 9000:9000 bunavision-vision:latest
 ```
 
+Rebuilding an image does not update an existing container. Recreate the container after rebuilding to run the new image.
+
 ## 7. API Endpoints
 
 Interactive docs are available at `http://localhost:9000/docs`.
 
 ### GET /health
-Returns health status, active engine (`onnx`), model path, and supported classes.
+Returns YOLO health status, active engine (`onnx`), model path, and supported classes. Both the YOLO detector and domain validator must load successfully before the service starts.
 
 Sample response:
 ```json
@@ -148,7 +151,7 @@ Sample response:
 ```
 
 ### POST /detect
-Accepts an image file (`multipart/form-data`) and optional `confidence` query parameter (default: 0.25). The coffee-domain validator runs first; non-coffee images are rejected with HTTP 400. Accepted images proceed to YOLO defect detection. Blocking inference runs in worker threads.
+Accepts a JPEG, PNG, or WEBP image up to 10 MB (`multipart/form-data`) and optional `confidence` query parameter (default: 0.25, range: 0.05-0.95). The coffee-domain validator runs first; non-coffee images are rejected with HTTP 400. Accepted images proceed to YOLO defect detection. Blocking inference runs in worker threads.
 
 Sample request:
 ```bash
@@ -157,51 +160,33 @@ curl -X POST "http://localhost:9000/detect?confidence=0.25" \
   -F "file=@sample_coffee.jpg"
 ```
 
-Sample response:
-```json
-{
-  "model_version": "YOLOv8n-Coffee-ONNX-v1",
-  "validator_version": "MobileNetV3-Small-Coffee-ONNX-v1",
-  "is_coffee": true,
-  "coffee_confidence": 1.0,
-  "total_beans": 3,
-  "healthy_beans": -1,
-  "defect_beans": 3,
-  "defect_counts": {
-    "Full Black": 2,
-    "Partial Black": 1
-  },
-  "detected_beans": [
-    {
-      "box": {
-        "x1": 142.5,
-        "y1": 210.0,
-        "x2": 198.2,
-        "y2": 275.4
-      },
-      "class_name": "Full Black",
-      "confidence": 0.912,
-      "category": "Primary Defect"
-    }
-  ],
-  "annotated_image_base64": "/9j/4AAQSkZJRg..."
-}
-```
+A measured success response from `vision/evaluation/30_174.jpg` at `confidence=0.25` is in the [vision contract example](../contracts/vision-api/examples/detection_success.json). The example's annotated-image Base64 is shortened for documentation; the live endpoint returns the complete value. The [zero-detection example](../contracts/vision-api/examples/detection_zero_defects.json) uses the same image at `confidence=0.95`.
 
-The two version fields identify the YOLO defect detector and the coffee-domain validator respectively. `coffee_confidence` is the validator's model confidence, not a measure of correctness. A zero-detection result is valid for an accepted coffee image; non-coffee images return HTTP 400 with code `IMAGE_NOT_COFFEE`.
+`model_version` identifies the YOLO detector; `validator_version` identifies the coffee-domain model. `coffee_confidence` is the validator's model confidence, not a measure of correctness. A zero-detection result is valid for an accepted coffee image; non-coffee images return HTTP 400 with code `IMAGE_NOT_COFFEE`.
+
+### Error Responses
+
+- `400`: Empty or invalid image (`detail` is a string), or domain rejection (`detail.code` is `IMAGE_NOT_COFFEE`).
+- `413`: Image exceeds the 10 MB upload limit.
+- `415`: Unsupported image format; accepted formats are JPEG, PNG, and WEBP.
+- `422`: Invalid request parameters.
+- `500`: Inference processing failure.
+- `503`: Model unavailable during inference.
 
 ### POST /reload-model
-Reloads both ONNX models and their configuration as one bundle. If either model fails to load, the active pair remains in use.
+Reloads both ONNX models and their configuration as one bundle. Success returns `reloaded`, `engine`, and `model_path`. If either model fails to load, the active pair remains in use and the endpoint returns HTTP 500.
 
 ## 8. Running Automated Tests
 
-Run the test suite with pytest:
+Run the test suite from the repository root:
 
 ```bash
-pytest vision/tests/ -v
+python -m pytest vision/tests/ -v
 ```
 
-The 47 tests cover:
+From inside `vision/`, run `python -m pytest tests/ -v`.
+
+The 48 tests cover:
 - Exact defect classification and canonical taxonomy mapping
 - Class-aware NMS and high-resolution (>4096px) coordinate suppression verification
 - Letterbox image padding (neutral gray 114) and bounding box rescaling

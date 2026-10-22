@@ -12,11 +12,11 @@
 |:-----|:------|
 | Core ONNX detection pipeline | ✅ Complete |
 | FastAPI service | ✅ Complete |
-| Test suite (47 tests) | ✅ All passing |
-| Docker container | ✅ Built and validated (`bunavision-vision:latest`) |
+| Test suite (48 tests) | ✅ All passing |
+| Docker container | ✅ Built and smoke-tested (`bunavision-vision:latest`) |
 | OpenAPI contract | ✅ Synced (`contracts/vision-api/openapi.json`) |
 | Documentation | ✅ Aligned with current architecture |
-| Git branch | `vision` — 4 commits ahead of `main` |
+| Branch workflow | Vision changes use `vision` and merge through a pull request |
 | Coffee domain validator | ✅ Complete & verified (MobileNetV3-Small ONNX, 6.09 MB, fail-fast HTTP 400 gate) |
 
 ---
@@ -189,16 +189,11 @@ Implemented components:
 
 ---
 
-## Git State
+## Git / Pull Request Workflow
 
-- **Active branch:** `vision`
-- **Remote:** `https://github.com/worku404/BunaVision.git`
-- **`main` branch:** untouched at `6abe6f3` — do not touch it
-- **Commits on `vision` ahead of `main`:**
-  1. `9232671` — `feat(vision): refactor detection pipeline into pure ONNX modular architecture`
-  2. `1afdb93` — `fix(vision): eliminate manifest fallback, dynamic bundle reload, add golden regression and lifespan tests`
-  3. `6ec6df0` — `fix(vision): sync OpenAPI contract, bare Base64 example, Dockerfile and .dockerignore`
-  4. `b8b7b20` — `docs: align vision documentation with pure ONNX pipeline and test coverage`
+- Vision-owned work is developed on `vision` and submitted to `main` through a pull request.
+- `main` is shared with the backend and frontend teams; fetch from `origin` before comparing branches.
+- Changes to `contracts/vision-api/` require review from the backend contract consumer.
 
 ---
 
@@ -206,9 +201,9 @@ Implemented components:
 
 - **Image:** `bunavision-vision:latest`
 - **Container name:** `bunavision-detector`
-- **Port:** `9000` (host) → `8000` (container)
-- **Start:** `docker start bunavision-detector`
-- **Rebuild:** `docker build -t bunavision-vision:latest D:\Coding\BunaVision-clean\vision`
+- **Port:** `9000` (host) → `9000` (container)
+- **Build from the repository root:** `docker build -t bunavision-vision:latest -f vision/Dockerfile vision`
+- **Update an existing container:** Rebuild the image, then recreate the container; `docker start` only restarts the image it was originally created from.
 
 ---
 

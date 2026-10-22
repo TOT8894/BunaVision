@@ -10,7 +10,8 @@ from PIL import Image
 from vision.core.schemas import (
     YOLODetectionResult,
     HealthResponse,
-    DomainRejectionResponse,
+    HTTPErrorResponse,
+    ReloadModelResponse,
 )
 from vision.core.detection import (
     YOLODetectorService,
@@ -75,9 +76,25 @@ async def health(detector: YOLODetectorService = Depends(get_detector)):
     response_model=YOLODetectionResult,
     responses={
         status.HTTP_400_BAD_REQUEST: {
-            "model": DomainRejectionResponse,
-            "description": "Domain validation failed (image is not green coffee beans)",
-        }
+            "model": HTTPErrorResponse,
+            "description": "Empty, invalid, or non-coffee image",
+        },
+        status.HTTP_413_CONTENT_TOO_LARGE: {
+            "model": HTTPErrorResponse,
+            "description": "Image exceeds the upload size limit",
+        },
+        status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: {
+            "model": HTTPErrorResponse,
+            "description": "Unsupported image format",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": HTTPErrorResponse,
+            "description": "Inference processing failed",
+        },
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "model": HTTPErrorResponse,
+            "description": "Inference model unavailable",
+        },
     },
     tags=["Inference"],
 )
@@ -94,7 +111,7 @@ async def detect_defects(
         )
     if len(image_bytes) > MAX_IMAGE_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Image exceeds 10MB limit."
         )
 
@@ -143,7 +160,17 @@ async def detect_defects(
             detail="Inference processing failed."
         )
 
-@app.post("/reload-model", tags=["Admin"])
+@app.post(
+    "/reload-model",
+    response_model=ReloadModelResponse,
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": HTTPErrorResponse,
+            "description": "Model reload failed; active model bundle retained",
+        }
+    },
+    tags=["Admin"],
+)
 async def reload_model(detector: YOLODetectorService = Depends(get_detector)):
     loaded = await anyio.to_thread.run_sync(detector.reload_model)
     if not loaded:
@@ -151,8 +178,8 @@ async def reload_model(detector: YOLODetectorService = Depends(get_detector)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Model reload failed. Active model retained."
         )
-    return {
-        "reloaded": True,
-        "engine": detector.engine_type,
-        "model_path": str(detector.model_path) if detector.model_path else None,
-    }
+    return ReloadModelResponse(
+        reloaded=True,
+        engine=detector.engine_type,
+        model_path=str(detector.model_path) if detector.model_path else None,
+    )
