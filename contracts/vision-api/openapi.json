@@ -71,6 +71,16 @@
               }
             }
           },
+          "400": {
+            "description": "Domain validation failed (image is not green coffee beans)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainRejectionResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -186,6 +196,50 @@
         ],
         "title": "DetectedBean"
       },
+      "DomainRejectionDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Error code for domain rejection",
+            "default": "IMAGE_NOT_COFFEE"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Explanation of rejection"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "description": "Validator confidence score that image is coffee"
+          },
+          "threshold": {
+            "type": "number",
+            "title": "Threshold",
+            "description": "Required threshold for coffee classification"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "confidence",
+          "threshold"
+        ],
+        "title": "DomainRejectionDetail"
+      },
+      "DomainRejectionResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/DomainRejectionDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "DomainRejectionResponse"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -298,6 +352,29 @@
             "title": "Model Version",
             "description": "Model identifier, e.g. 'YOLOv8n-Coffee-ONNX-v1'"
           },
+          "validator_version": {
+            "type": "string",
+            "title": "Validator Version",
+            "description": "Coffee-domain model identifier, e.g. 'MobileNetV3-Small-Coffee-ONNX-v1'"
+          },
+          "is_coffee": {
+            "type": "boolean",
+            "title": "Is Coffee",
+            "description": "Whether the image contains green coffee beans based on domain validator",
+            "default": true
+          },
+          "coffee_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coffee Confidence",
+            "description": "Confidence score from the domain validator"
+          },
           "total_beans": {
             "type": "integer",
             "minimum": 0.0,
@@ -348,6 +425,7 @@
         "type": "object",
         "required": [
           "model_version",
+          "validator_version",
           "total_beans",
           "healthy_beans",
           "defect_beans"

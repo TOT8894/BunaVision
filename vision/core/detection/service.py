@@ -1,6 +1,7 @@
 import io
 import functools
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, List, Dict
 from PIL import Image
@@ -23,12 +24,35 @@ from vision.core.detection.preprocessing import prepare_image
 from vision.core.detection.annotator import annotate_image
 from vision.core.detection.engines.base import DetectionEngine
 from vision.core.detection.engines.factory import create_engine
+from vision.core.detection.validator import DomainValidator, ImageDomainRejectedError
 
 logger = logging.getLogger("bunavision.detector")
 
+
+@dataclass(frozen=True)
+class _ModelBundle:
+    engine: DetectionEngine
+    validator: DomainValidator
+
+
 class YOLODetectorService:
-    def __init__(self, engine: Optional[DetectionEngine] = None):
-        self.engine = engine if engine is not None else create_engine()
+    def __init__(
+        self,
+        engine: Optional[DetectionEngine] = None,
+        validator: Optional[DomainValidator] = None,
+    ):
+        self._models = _ModelBundle(
+            engine=engine if engine is not None else create_engine(),
+            validator=validator if validator is not None else DomainValidator(),
+        )
+
+    @property
+    def engine(self) -> DetectionEngine:
+        return self._models.engine
+
+    @property
+    def validator(self) -> DomainValidator:
+        return self._models.validator
 
     @property
     def engine_type(self) -> str:
@@ -41,6 +65,10 @@ class YOLODetectorService:
     @property
     def model_version(self) -> str:
         return self.engine.model_version
+
+    @property
+    def validator_version(self) -> str:
+        return self.validator.model_version
 
     @property
     def model_path(self):
@@ -59,24 +87,35 @@ class YOLODetectorService:
         model_path: Optional[Path] = None,
         manifest_path: Optional[Path] = None,
         model_version: Optional[str] = None,
+        validator_model_path: Optional[Path] = None,
+        validator_config_path: Optional[Path] = None,
     ) -> bool:
-        # Safe swap: only replace working engine if new engine loads successfully
         try:
             new_engine = create_engine(
                 model_path=model_path,
                 manifest_path=manifest_path,
                 model_version=model_version,
             )
-            if new_engine.is_loaded:
-                self.engine = new_engine
-                logger.info(
-                    f"Model reload succeeded, new engine active "
-                    f"(version={new_engine.model_version}, classes={self.supported_classes})"
-                )
-                return True
-            return False
+            new_validator = DomainValidator(
+                model_path=validator_model_path,
+                config_path=validator_config_path,
+            )
+            if not new_engine.is_loaded or not new_validator.is_loaded:
+                return False
+
+            new_models = _ModelBundle(
+                engine=new_engine,
+                validator=new_validator,
+            )
+            self._models = new_models
+            logger.info(
+                f"Model bundle reload succeeded "
+                f"(yolo_version={new_engine.model_version}, "
+                f"validator_version={new_validator.model_version})"
+            )
+            return True
         except Exception as e:
-            logger.error(f"Model reload failed, retaining active engine: {e}")
+            logger.error(f"Model bundle reload failed, retaining active models: {e}")
             return False
 
     def classify_category(self, class_name: str) -> str:
@@ -85,21 +124,40 @@ class YOLODetectorService:
     def detect(
         self,
         image_bytes: bytes,
-        confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD
+        confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+        validate_domain: bool = True,
     ) -> YOLODetectionResult:
         pil_img = prepare_image(Image.open(io.BytesIO(image_bytes)))
+        models = self._models
+        engine = models.engine
+        validator = models.validator
 
-        if not self.is_loaded:
+        if not engine.is_loaded:
             raise RuntimeError(
-                f"YOLO detector model is not loaded (engine={self.engine_type}). "
+                f"YOLO detector model is not loaded (engine={engine.engine_type}). "
                 f"Ensure 'best.onnx' exists in '{MODEL_DIR}'."
             )
 
-        raw_detections = self.engine.predict(pil_img, conf_threshold=confidence_threshold)
+        is_coffee = True
+        coffee_confidence = None
+        if validate_domain:
+            val_res = validator.validate(pil_img)
+            is_coffee = val_res.is_coffee
+            coffee_confidence = val_res.confidence
+            if not is_coffee:
+                raise ImageDomainRejectedError(
+                    confidence=val_res.confidence,
+                    threshold=val_res.threshold,
+                )
+
+        raw_detections = engine.predict(pil_img, conf_threshold=confidence_threshold)
 
         if len(raw_detections) == 0:
             return YOLODetectionResult(
-                model_version=self.model_version,
+                model_version=engine.model_version,
+                validator_version=validator.model_version,
+                is_coffee=is_coffee,
+                coffee_confidence=coffee_confidence,
                 total_beans=0,
                 healthy_beans=-1,
                 defect_beans=0,
@@ -133,7 +191,10 @@ class YOLODetectorService:
         img_b64 = annotate_image(pil_img, detected_beans)
 
         return YOLODetectionResult(
-            model_version=self.model_version,
+            model_version=engine.model_version,
+            validator_version=validator.model_version,
+            is_coffee=is_coffee,
+            coffee_confidence=coffee_confidence,
             total_beans=len(detected_beans),
             healthy_beans=-1,
             defect_beans=len(detected_beans),

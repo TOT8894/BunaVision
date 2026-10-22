@@ -7,12 +7,17 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends, st
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
-from vision.core.schemas import YOLODetectionResult, HealthResponse
+from vision.core.schemas import (
+    YOLODetectionResult,
+    HealthResponse,
+    DomainRejectionResponse,
+)
 from vision.core.detection import (
     YOLODetectorService,
     get_detector,
     SUPPORTED_CLASSES,
 )
+from vision.core.detection.validator import ImageDomainRejectedError
 from vision.core.detection.config import MODEL_ONNX_PATH
 
 logging.basicConfig(
@@ -65,7 +70,17 @@ async def health(detector: YOLODetectorService = Depends(get_detector)):
         supported_classes=detector.supported_classes,
     )
 
-@app.post("/detect", response_model=YOLODetectionResult, tags=["Inference"])
+@app.post(
+    "/detect",
+    response_model=YOLODetectionResult,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "model": DomainRejectionResponse,
+            "description": "Domain validation failed (image is not green coffee beans)",
+        }
+    },
+    tags=["Inference"],
+)
 async def detect_defects(
     file: UploadFile = File(..., description="Green coffee bean sample photo"),
     confidence: float = Query(0.25, ge=0.05, le=0.95, description="Confidence threshold"),
@@ -104,6 +119,17 @@ async def detect_defects(
             lambda: detector.detect(image_bytes, confidence_threshold=confidence)
         )
         return result
+    except ImageDomainRejectedError as de:
+        logger.warning(f"Domain validation rejected image: {de}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "IMAGE_NOT_COFFEE",
+                "message": de.message,
+                "confidence": de.confidence,
+                "threshold": de.threshold,
+            }
+        )
     except RuntimeError as re:
         logger.error(f"Model error: {re}")
         raise HTTPException(

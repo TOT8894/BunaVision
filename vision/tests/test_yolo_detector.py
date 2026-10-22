@@ -109,7 +109,7 @@ def test_detect_blank_image_zero_defects():
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
 
-    result = yolo_service.detect(buf.getvalue())
+    result = yolo_service.detect(buf.getvalue(), validate_domain=False)
     assert result.model_version == "YOLOv8n-Coffee-ONNX-v1"
     assert result.total_beans == 0
     assert result.defect_beans == 0
@@ -122,9 +122,10 @@ def test_detect_returns_model_version():
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
 
-    result = yolo_service.detect(buf.getvalue())
+    result = yolo_service.detect(buf.getvalue(), validate_domain=False)
     assert result.model_version is not None
     assert len(result.model_version) > 0
+    assert result.validator_version == yolo_service.validator_version
 
 def test_health_endpoint():
     response = client.get("/health")
@@ -137,21 +138,22 @@ def test_health_endpoint():
     assert "model_path" in data
 
 def test_detect_endpoint_success():
-    img = Image.new("RGB", (640, 640), color=(128, 128, 128))
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG")
+    golden_path = Path(__file__).resolve().parent.parent / "evaluation" / "30_174.jpg"
+    assert golden_path.exists(), f"Golden image missing: {golden_path}"
 
     response = client.post(
         "/detect",
-        files={"file": ("test.jpg", buf.getvalue(), "image/jpeg")},
+        files={"file": ("30_174.jpg", golden_path.read_bytes(), "image/jpeg")},
         params={"confidence": 0.25}
     )
     assert response.status_code == 200
     data = response.json()
     assert data["model_version"] == "YOLOv8n-Coffee-ONNX-v1"
-    assert data["total_beans"] == 0
+    assert data["validator_version"] == "MobileNetV3-Small-Coffee-ONNX-v1"
+    assert data["is_coffee"] is True
+    assert data["total_beans"] > 0
     assert data["healthy_beans"] == -1
-    assert data["defect_beans"] == 0
+    assert data["defect_beans"] > 0
 
 def test_detect_endpoint_empty_file():
     response = client.post(

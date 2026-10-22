@@ -13,8 +13,8 @@ This directory contains the **single source of truth** for the HTTP inference AP
   - `POST /detect`: Accepts multipart/form-data images, returns `YOLODetectionResult`.
   - `GET /health`: Health check, engine type, and model status.
   - `POST /reload-model`: Administrative model reload endpoint.
-* **[`examples/detection_success.json`](./examples/detection_success.json)**: Concrete JSON payload returned when defects are detected (localized bounding boxes, defect counts, model version, and annotated bare base64 JPEG preview).
-* **[`examples/detection_zero_defects.json`](./examples/detection_zero_defects.json)**: Exact JSON payload returned when an image has zero defects (`defect_beans = 0`, `detected_beans = []`, `annotated_image_base64 = null`).
+* **[`examples/detection_success.json`](./examples/detection_success.json)**: Concrete JSON payload returned when defects are detected (localized boxes, counts, both model versions, domain-validation confidence, and annotated bare Base64 JPEG preview).
+* **[`examples/detection_zero_defects.json`](./examples/detection_zero_defects.json)**: JSON payload returned for an accepted coffee image with zero defect detections.
 
 ---
 
@@ -49,6 +49,7 @@ From the repository root:
 
 Per [vision/AGENTS.md](../../vision/AGENTS.md):
 - **Model Version:** Every response must include `model_version: "YOLOv8n-Coffee-ONNX-v1"`.
+- **Validator Version:** Every successful detection response includes `validator_version`, identifying the active coffee-domain model.
 - **Supported Defect Classes:** Currently 3 classes:
   - `Full Black` (Primary Defect)
   - `Partial Black` (Secondary Defect)
