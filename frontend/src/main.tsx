@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
+import { env } from './config/env'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -10,16 +11,25 @@ const queryClient = new QueryClient({
   },
 })
 
+async function enableMocking() {
+  if (env.useMocks && import.meta.env.DEV) {
+    const { worker } = await import('./mocks/browser')
+    await worker.start()
+  }
+}
+
 const rootElement = document.getElementById('root')
 
 if (!rootElement) {
   throw new Error('Unable to find the application root.')
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </StrictMode>,
-)
+enableMocking().then(() => {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </StrictMode>,
+  )
+})
