@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@theme {
+  --color-coffee-50: #faf7f2;
+  --color-coffee-100: #f1e9dc;
+  --color-coffee-700: #5f3b23;
+  --color-leaf-700: #1f5d42;
+}
+
+@layer base {
+  body {
+    @apply min-w-80 bg-coffee-50 font-sans text-slate-900 antialiased;
+  }
+
+  a {
+    @apply underline-offset-4;
+  }
+}
