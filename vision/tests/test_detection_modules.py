@@ -70,7 +70,7 @@ def test_dummy_engine_injection():
     assert result.model_version == "DummyEngine-v1"
     assert result.validator_version == service.validator_version
     assert result.defect_beans == 1
-    assert result.total_beans == 1
+    assert result.total_beans == -1
     assert result.detected_beans[0].class_name == "Full Black"
     assert result.detected_beans[0].category == "Primary Defect"
     assert result.annotated_image_base64 is not None

@@ -3,7 +3,7 @@
   "validator_version": "MobileNetV3-Small-Coffee-ONNX-v1",
   "is_coffee": true,
   "coffee_confidence": 1.0,
-  "total_beans": 5,
+  "total_beans": -1,
   "healthy_beans": -1,
   "defect_beans": 5,
   "defect_counts": {

@@ -3,7 +3,7 @@ Pydantic schemas shared by vision.core and vision.service.
 Defines the inference contract shapes for defect detection.
 """
 
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 
 class BoundingBox(BaseModel):
@@ -26,7 +26,11 @@ class YOLODetectionResult(BaseModel):
     )
     is_coffee: bool = Field(True, description="Whether the image contains green coffee beans based on domain validator")
     coffee_confidence: Optional[float] = Field(None, description="Confidence score from the domain validator")
-    total_beans: int = Field(..., ge=0, description="Total defect instances localized by YOLO")
+    total_beans: int = Field(
+        ...,
+        ge=-1,
+        description="Total sample bean count; -1 means YOLO does not estimate this count",
+    )
     healthy_beans: int = Field(
         ...,
         ge=-1,
@@ -55,10 +59,13 @@ class DomainRejectionDetail(BaseModel):
     confidence: float = Field(..., description="Validator confidence score that image is coffee")
     threshold: float = Field(..., description="Required threshold for coffee classification")
 
+class DomainRejectionResponse(BaseModel):
+    detail: DomainRejectionDetail
+
 class HTTPErrorResponse(BaseModel):
-    detail: Union[str, DomainRejectionDetail] = Field(
+    detail: str = Field(
         ...,
-        description="Error message or structured domain-rejection detail",
+        description="Error message",
     )
 
 class ReloadModelResponse(BaseModel):

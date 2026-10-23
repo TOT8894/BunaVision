@@ -72,31 +72,11 @@
             }
           },
           "400": {
-            "description": "Empty, invalid, or non-coffee image",
+            "description": "Image does not appear to contain green coffee beans",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPErrorResponse"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Image exceeds the upload size limit",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPErrorResponse"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Unsupported image format",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                  "$ref": "#/components/schemas/DomainRejectionResponse"
                 }
               }
             }
@@ -280,19 +260,24 @@
         ],
         "title": "DomainRejectionDetail"
       },
+      "DomainRejectionResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/DomainRejectionDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "DomainRejectionResponse"
+      },
       "HTTPErrorResponse": {
         "properties": {
           "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "$ref": "#/components/schemas/DomainRejectionDetail"
-              }
-            ],
+            "type": "string",
             "title": "Detail",
-            "description": "Error message or structured domain-rejection detail"
+            "description": "Error message"
           }
         },
         "type": "object",
@@ -467,9 +452,9 @@
           },
           "total_beans": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": -1.0,
             "title": "Total Beans",
-            "description": "Total defect instances localized by YOLO"
+            "description": "Total sample bean count; -1 means YOLO does not estimate this count"
           },
           "healthy_beans": {
             "type": "integer",

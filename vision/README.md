@@ -68,7 +68,7 @@ The model detects 3 visible defect classes from the Roboflow dataset manifest (`
 | `1` | `hitam-sebagian` | Partial Black | Secondary Defect |
 | `2` | `kulit-kopi-kecil` | Coffee Husk / Parchment | Secondary Defect |
 
-Non-defective (healthy) beans are not localized by this detector (`healthy_beans = -1`). Total sample bean count is estimated by the backend stage.
+This detector only localizes supported defects; it does not count total or healthy beans (`total_beans = -1`, `healthy_beans = -1`). The backend may estimate total sample beans separately.
 
 ## 4. Prerequisites
 
@@ -98,6 +98,7 @@ Non-defective (healthy) beans are not localized by this detector (`healthy_beans
    ```
 
 4. Verify `vision/model/best.onnx`, `vision/model/best_validator.onnx`, `vision/model/classes.json`, and `vision/model/validator_config.json` are present.
+5. The backend is responsible for validating upload size, format, and image content before calling vision.
 
 ## 6. Running the Service
 
@@ -151,7 +152,7 @@ Sample response:
 ```
 
 ### POST /detect
-Accepts a JPEG, PNG, or WEBP image up to 10 MB (`multipart/form-data`) and optional `confidence` query parameter (default: 0.25, range: 0.05-0.95). The coffee-domain validator runs first; non-coffee images are rejected with HTTP 400. Accepted images proceed to YOLO defect detection. Blocking inference runs in worker threads.
+Accepts image bytes as a multipart file plus an optional `confidence` query parameter (default: 0.25, range: 0.05-0.95). The backend owns upload size, format, and image-content validation. Vision reads the supplied bytes, runs the coffee-domain validator, then runs YOLO for accepted coffee images. Non-coffee images are rejected with HTTP 400. Blocking inference runs in worker threads.
 
 Sample request:
 ```bash
@@ -166,11 +167,9 @@ A measured success response from `vision/evaluation/30_174.jpg` at `confidence=0
 
 ### Error Responses
 
-- `400`: Empty or invalid image (`detail` is a string), or domain rejection (`detail.code` is `IMAGE_NOT_COFFEE`).
-- `413`: Image exceeds the 10 MB upload limit.
-- `415`: Unsupported image format; accepted formats are JPEG, PNG, and WEBP.
+- `400`: Domain rejection (`detail.code` is `IMAGE_NOT_COFFEE`).
 - `422`: Invalid request parameters.
-- `500`: Inference processing failure.
+- `500`: Inference processing failure, including bytes that cannot be decoded by the core image pipeline.
 - `503`: Model unavailable during inference.
 
 ### POST /reload-model
@@ -186,7 +185,7 @@ python -m pytest vision/tests/ -v
 
 From inside `vision/`, run `python -m pytest tests/ -v`.
 
-The 48 tests cover:
+The 49 tests cover:
 - Exact defect classification and canonical taxonomy mapping
 - Class-aware NMS and high-resolution (>4096px) coordinate suppression verification
 - Letterbox image padding (neutral gray 114) and bounding box rescaling
@@ -196,4 +195,4 @@ The 48 tests cover:
 - Safe model-bundle hot-reloading (preserving both active models if either reload fails)
 - Lifespan fail-fast integration tests for missing model artifacts
 - Golden-image regression testing on real green coffee bean evaluation photos (vision/evaluation/*.jpg)
-- HTTP endpoints: /health (strongly typed schema), /detect (valid, empty, corrupt, and unsupported formats), and /reload-model
+- HTTP endpoints: /health, /detect (valid inference, domain rejection, and transparent upload forwarding), and /reload-model

@@ -10,11 +10,13 @@ This directory contains the **single source of truth** for the HTTP inference AP
 ## 1. Committed Artifacts
 
 * **[`openapi.json`](./openapi.json)**: The official OpenAPI 3.1.0 schema generated directly from [`vision/service/main.py`](../../vision/service/main.py). It formally defines:
-  - `POST /detect`: Accepts multipart/form-data images and documents success plus image-validation, domain-rejection, and inference-error responses.
+  - `POST /detect`: Accepts multipart/form-data image bytes and documents success, domain-rejection, request-shape, and inference-error responses.
   - `GET /health`: Health check, engine type, and model status.
   - `POST /reload-model`: Administrative model reload endpoint with typed success and failure responses.
 * **[`examples/detection_success.json`](./examples/detection_success.json)**: Measured response for `vision/evaluation/30_174.jpg` at confidence threshold `0.25` (five detections). The annotation Base64 is shortened for documentation and is not decodable.
 * **[`examples/detection_zero_defects.json`](./examples/detection_zero_defects.json)**: Measured response for the same accepted coffee image at confidence threshold `0.95`, which produces zero defect detections.
+
+The backend validates upload size, format, and image content before calling vision. The vision service does not implement duplicate upload-policy checks; it receives the bytes and runs domain validation and inference.
 
 ---
 
@@ -51,7 +53,8 @@ Per [vision/AGENTS.md](../../vision/AGENTS.md):
 - **Model Versions:** Every successful `/detect` response includes `model_version` for YOLO and `validator_version` for the coffee-domain model.
 - **Confidence:** `confidence` in each detection and `coffee_confidence` are model confidence scores, not measures of correctness.
 - **Bounding Boxes:** `x1`, `y1`, `x2`, and `y2` are pixel coordinates in the original image; the first pair is the top-left and the second pair is the bottom-right.
-- **Counts:** `total_beans` and `defect_beans` count localized defect instances. `healthy_beans = -1` means the detector does not count healthy beans.
+- **Counts:** `total_beans = -1` means YOLO does not estimate total sample beans. `defect_beans` counts localized defect instances, and `defect_counts` breaks them down by class. `healthy_beans = -1` means healthy beans are not counted.
+- **Upload Validation:** The backend owns upload size, format, and image-content validation. The vision service may return HTTP 500 if invalid bytes reach the inference core.
 - **Supported Defect Classes:** Currently 3 classes:
   - `Full Black` (Primary Defect)
   - `Partial Black` (Secondary Defect)

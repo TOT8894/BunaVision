@@ -1,22 +1,20 @@
-import io
 import logging
 from contextlib import asynccontextmanager
 
 import anyio
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
 
 from vision.core.schemas import (
     YOLODetectionResult,
     HealthResponse,
+    DomainRejectionResponse,
     HTTPErrorResponse,
     ReloadModelResponse,
 )
 from vision.core.detection import (
     YOLODetectorService,
     get_detector,
-    SUPPORTED_CLASSES,
 )
 from vision.core.detection.validator import ImageDomainRejectedError
 from vision.core.detection.config import MODEL_ONNX_PATH
@@ -26,9 +24,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger("bunavision.vision_service")
-
-MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
-SUPPORTED_FORMATS = {"JPEG", "PNG", "WEBP"}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -76,16 +71,8 @@ async def health(detector: YOLODetectorService = Depends(get_detector)):
     response_model=YOLODetectionResult,
     responses={
         status.HTTP_400_BAD_REQUEST: {
-            "model": HTTPErrorResponse,
-            "description": "Empty, invalid, or non-coffee image",
-        },
-        status.HTTP_413_CONTENT_TOO_LARGE: {
-            "model": HTTPErrorResponse,
-            "description": "Image exceeds the upload size limit",
-        },
-        status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: {
-            "model": HTTPErrorResponse,
-            "description": "Unsupported image format",
+            "model": DomainRejectionResponse,
+            "description": "Image does not appear to contain green coffee beans",
         },
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
             "model": HTTPErrorResponse,
@@ -104,32 +91,6 @@ async def detect_defects(
     detector: YOLODetectorService = Depends(get_detector),
 ):
     image_bytes = await file.read()
-    if len(image_bytes) == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Empty image uploaded."
-        )
-    if len(image_bytes) > MAX_IMAGE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="Image exceeds 10MB limit."
-        )
-
-    try:
-        pil_img = Image.open(io.BytesIO(image_bytes))
-        pil_img.verify()
-        if pil_img.format not in SUPPORTED_FORMATS:
-            raise HTTPException(
-                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail=f"Unsupported image format: {pil_img.format}. Supported: {SUPPORTED_FORMATS}"
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid image file: {str(e)}"
-        )
 
     try:
         result = await anyio.to_thread.run_sync(

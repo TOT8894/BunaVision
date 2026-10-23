@@ -12,7 +12,7 @@
 |:-----|:------|
 | Core ONNX detection pipeline | ✅ Complete |
 | FastAPI service | ✅ Complete |
-| Test suite (48 tests) | ✅ All passing |
+| Test suite (49 tests) | ✅ All passing |
 | Docker container | ✅ Built and smoke-tested (`bunavision-vision:latest`) |
 | OpenAPI contract | ✅ Synced (`contracts/vision-api/openapi.json`) |
 | Documentation | ✅ Aligned with current architecture |

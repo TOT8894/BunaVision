@@ -88,7 +88,8 @@ def test_detector_service_accepts_coffee(golden_coffee_bytes):
     assert result.is_coffee is True
     assert result.coffee_confidence is not None
     assert result.coffee_confidence >= 0.75
-    assert result.total_beans > 0
+    assert result.total_beans == -1
+    assert result.defect_beans > 0
 
 
 def test_api_detect_returns_400_on_non_coffee(non_coffee_image_bytes):
@@ -115,7 +116,8 @@ def test_api_detect_returns_200_on_coffee(golden_coffee_bytes):
         data = resp.json()
         assert data["is_coffee"] is True
         assert data["coffee_confidence"] >= 0.75
-        assert data["total_beans"] > 0
+        assert data["total_beans"] == -1
+        assert data["defect_beans"] > 0
         assert "annotated_image_base64" in data
 
 
