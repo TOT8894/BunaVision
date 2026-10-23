@@ -9,13 +9,42 @@ from fastapi.testclient import TestClient
 
 from vision.core.yolo_detector import (
     yolo_service,
+    YOLODetectorService,
     nms,
     _get_annotation_style,
     SUPPORTED_CLASSES,
 )
+from vision.core.schemas import YOLODetectionResult
 from vision.service.main import app
 
 client = TestClient(app)
+
+def _assert_upload_is_forwarded(filename: str, image_bytes: bytes, content_type: str):
+    result = YOLODetectionResult(
+        model_version=yolo_service.model_version,
+        validator_version=yolo_service.validator_version,
+        is_coffee=True,
+        coffee_confidence=0.99,
+        total_beans=-1,
+        healthy_beans=-1,
+        defect_beans=0,
+    )
+    with patch.object(
+        YOLODetectorService,
+        "detect",
+        autospec=True,
+        return_value=result,
+    ) as detect:
+        response = client.post(
+            "/detect",
+            files={"file": (filename, image_bytes, content_type)},
+        )
+
+    assert response.status_code == 200
+    args, kwargs = detect.call_args
+    assert args[1] == image_bytes
+    assert kwargs == {"confidence_threshold": 0.25}
+
 
 def test_classify_category_exact_matching():
     # Raw Roboflow labels
@@ -109,9 +138,9 @@ def test_detect_blank_image_zero_defects():
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
 
-    result = yolo_service.detect(buf.getvalue())
+    result = yolo_service.detect(buf.getvalue(), validate_domain=False)
     assert result.model_version == "YOLOv8n-Coffee-ONNX-v1"
-    assert result.total_beans == 0
+    assert result.total_beans == -1
     assert result.defect_beans == 0
     assert result.healthy_beans == -1
     assert result.detected_beans == []
@@ -122,9 +151,10 @@ def test_detect_returns_model_version():
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
 
-    result = yolo_service.detect(buf.getvalue())
+    result = yolo_service.detect(buf.getvalue(), validate_domain=False)
     assert result.model_version is not None
     assert len(result.model_version) > 0
+    assert result.validator_version == yolo_service.validator_version
 
 def test_health_endpoint():
     response = client.get("/health")
@@ -137,49 +167,42 @@ def test_health_endpoint():
     assert "model_path" in data
 
 def test_detect_endpoint_success():
-    img = Image.new("RGB", (640, 640), color=(128, 128, 128))
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG")
+    golden_path = Path(__file__).resolve().parent.parent / "evaluation" / "30_174.jpg"
+    assert golden_path.exists(), f"Golden image missing: {golden_path}"
 
     response = client.post(
         "/detect",
-        files={"file": ("test.jpg", buf.getvalue(), "image/jpeg")},
+        files={"file": ("30_174.jpg", golden_path.read_bytes(), "image/jpeg")},
         params={"confidence": 0.25}
     )
     assert response.status_code == 200
     data = response.json()
     assert data["model_version"] == "YOLOv8n-Coffee-ONNX-v1"
-    assert data["total_beans"] == 0
+    assert data["validator_version"] == "MobileNetV3-Small-Coffee-ONNX-v1"
+    assert data["is_coffee"] is True
+    assert data["total_beans"] == -1
     assert data["healthy_beans"] == -1
-    assert data["defect_beans"] == 0
+    assert data["defect_beans"] > 0
 
-def test_detect_endpoint_empty_file():
-    response = client.post(
-        "/detect",
-        files={"file": ("empty.jpg", b"", "image/jpeg")}
+def test_detect_endpoint_forwards_empty_file_to_core():
+    _assert_upload_is_forwarded("empty.jpg", b"", "image/jpeg")
+
+def test_detect_endpoint_forwards_corrupted_file_to_core():
+    _assert_upload_is_forwarded(
+        "corrupt.jpg",
+        b"not-an-image-payload",
+        "image/jpeg",
     )
-    assert response.status_code == 400
-    assert "Empty image" in response.json()["detail"]
 
-def test_detect_endpoint_corrupted_file():
-    response = client.post(
-        "/detect",
-        files={"file": ("corrupt.jpg", b"not-an-image-payload", "image/jpeg")}
-    )
-    assert response.status_code == 400
-    assert "Invalid image file" in response.json()["detail"]
-
-def test_detect_endpoint_unsupported_format():
+def test_detect_endpoint_forwards_unsupported_format_to_core():
     img = Image.new("RGB", (100, 100), color=(255, 0, 0))
     buf = io.BytesIO()
     img.save(buf, format="GIF")
+    _assert_upload_is_forwarded("sample.gif", buf.getvalue(), "image/gif")
 
-    response = client.post(
-        "/detect",
-        files={"file": ("sample.gif", buf.getvalue(), "image/gif")}
-    )
-    assert response.status_code == 415
-    assert "Unsupported image format" in response.json()["detail"]
+def test_detect_endpoint_forwards_large_file_to_core():
+    image_bytes = b"x" * (10 * 1024 * 1024 + 1)
+    _assert_upload_is_forwarded("large.jpg", image_bytes, "image/jpeg")
 
 def test_reload_model_endpoint():
     response = client.post("/reload-model")
@@ -187,6 +210,28 @@ def test_reload_model_endpoint():
     data = response.json()
     assert data["reloaded"] is True
     assert data["engine"] == "onnx"
+    assert data["model_path"].endswith("best.onnx")
+
+def test_openapi_documents_service_error_responses():
+    openapi = app.openapi()
+    detect_responses = openapi["paths"]["/detect"]["post"]["responses"]
+
+    assert detect_responses["400"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DomainRejectionResponse"
+    }
+    for status_code in ("500", "503"):
+        schema = detect_responses[status_code]["content"]["application/json"]["schema"]
+        assert schema == {"$ref": "#/components/schemas/HTTPErrorResponse"}
+    assert "413" not in detect_responses
+    assert "415" not in detect_responses
+
+    reload_responses = openapi["paths"]["/reload-model"]["post"]["responses"]
+    assert reload_responses["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ReloadModelResponse"
+    }
+    assert reload_responses["500"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/HTTPErrorResponse"
+    }
 
 def test_lifespan_fail_fast_on_unloaded_model():
     mock_detector = MagicMock()
@@ -211,7 +256,7 @@ def test_golden_image_evaluation_regression(img_name: str, expected_min_defects:
     result = yolo_service.detect(img_bytes, confidence_threshold=0.25)
     assert result.model_version == "YOLOv8n-Coffee-ONNX-v1"
     assert result.defect_beans >= expected_min_defects
-    assert result.total_beans >= expected_min_defects
+    assert result.total_beans == -1
     assert result.annotated_image_base64 is not None
 
     # Validate that annotated base64 payload is valid JPEG

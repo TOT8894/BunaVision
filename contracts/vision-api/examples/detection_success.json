@@ -1,46 +1,72 @@
 {
   "model_version": "YOLOv8n-Coffee-ONNX-v1",
-  "total_beans": 3,
+  "validator_version": "MobileNetV3-Small-Coffee-ONNX-v1",
+  "is_coffee": true,
+  "coffee_confidence": 1.0,
+  "total_beans": -1,
   "healthy_beans": -1,
-  "defect_beans": 3,
+  "defect_beans": 5,
   "defect_counts": {
+    "Coffee Husk / Parchment": 1,
     "Full Black": 2,
-    "Partial Black": 1
+    "Partial Black": 2
   },
   "detected_beans": [
     {
       "box": {
-        "x1": 154.2,
-        "y1": 210.5,
-        "x2": 212.8,
-        "y2": 285.0
+        "x1": 1712.8,
+        "y1": 1318.7,
+        "x2": 1802.1,
+        "y2": 1455.7
+      },
+      "class_name": "Coffee Husk / Parchment",
+      "confidence": 0.851,
+      "category": "Secondary Defect"
+    },
+    {
+      "box": {
+        "x1": 981.0,
+        "y1": 856.0,
+        "x2": 1097.5,
+        "y2": 947.7
       },
       "class_name": "Full Black",
-      "confidence": 0.924,
+      "confidence": 0.827,
       "category": "Primary Defect"
     },
     {
       "box": {
-        "x1": 340.0,
-        "y1": 180.2,
-        "x2": 405.6,
-        "y2": 248.7
-      },
-      "class_name": "Full Black",
-      "confidence": 0.887,
-      "category": "Primary Defect"
-    },
-    {
-      "box": {
-        "x1": 460.1,
-        "y1": 315.4,
-        "x2": 525.3,
-        "y2": 390.2
+        "x1": 1622.2,
+        "y1": 512.9,
+        "x2": 1725.6,
+        "y2": 612.9
       },
       "class_name": "Partial Black",
-      "confidence": 0.815,
+      "confidence": 0.814,
       "category": "Secondary Defect"
+    },
+    {
+      "box": {
+        "x1": 760.1,
+        "y1": 1999.3,
+        "x2": 879.5,
+        "y2": 2101.9
+      },
+      "class_name": "Partial Black",
+      "confidence": 0.736,
+      "category": "Secondary Defect"
+    },
+    {
+      "box": {
+        "x1": 1348.6,
+        "y1": 2463.2,
+        "x2": 1448.2,
+        "y2": 2565.1
+      },
+      "class_name": "Full Black",
+      "confidence": 0.559,
+      "category": "Primary Defect"
     }
   ],
-  "annotated_image_base64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBD..."
+  "annotated_image_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoH...[truncated in documentation]"
 }

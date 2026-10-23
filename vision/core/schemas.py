@@ -20,7 +20,17 @@ class DetectedBean(BaseModel):
 
 class YOLODetectionResult(BaseModel):
     model_version: str = Field(..., description="Model identifier, e.g. 'YOLOv8n-Coffee-ONNX-v1'")
-    total_beans: int = Field(..., ge=0, description="Total defect instances localized by YOLO")
+    validator_version: str = Field(
+        ...,
+        description="Coffee-domain model identifier, e.g. 'MobileNetV3-Small-Coffee-ONNX-v1'",
+    )
+    is_coffee: bool = Field(True, description="Whether the image contains green coffee beans based on domain validator")
+    coffee_confidence: Optional[float] = Field(None, description="Confidence score from the domain validator")
+    total_beans: int = Field(
+        ...,
+        ge=-1,
+        description="Total sample bean count; -1 means YOLO does not estimate this count",
+    )
     healthy_beans: int = Field(
         ...,
         ge=-1,
@@ -42,3 +52,23 @@ class HealthResponse(BaseModel):
     model_loaded: bool = Field(..., description="Whether model weights are loaded")
     model_path: Optional[str] = Field(None, description="Path to loaded model weights")
     supported_classes: List[str] = Field(default_factory=list, description="Defect classes this model detects")
+
+class DomainRejectionDetail(BaseModel):
+    code: str = Field("IMAGE_NOT_COFFEE", description="Error code for domain rejection")
+    message: str = Field(..., description="Explanation of rejection")
+    confidence: float = Field(..., description="Validator confidence score that image is coffee")
+    threshold: float = Field(..., description="Required threshold for coffee classification")
+
+class DomainRejectionResponse(BaseModel):
+    detail: DomainRejectionDetail
+
+class HTTPErrorResponse(BaseModel):
+    detail: str = Field(
+        ...,
+        description="Error message",
+    )
+
+class ReloadModelResponse(BaseModel):
+    reloaded: bool
+    engine: str
+    model_path: Optional[str] = None
