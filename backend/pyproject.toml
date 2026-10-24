@@ -1,16 +1,25 @@
+[project]
+name = "bunavision-backend"
+version = "0.4.0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "ANN", "ASYNC", "S", "SIM", "RET", "PL"]
-ignore = ["PLR0913"]  # the service constructor takes many ports on purpose
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ANN"]
+ignore = ["E501"]  # the formatter owns line length
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "ANN", "PLR2004", "S105", "S106", "B011"]
+"tests/**" = ["ANN"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "scripts"]
+exclude = ["migrations/"]
