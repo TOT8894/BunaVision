@@ -1,13 +1,12 @@
 """Server-side image validation.
 
 The client is untrusted: a filename or MIME type proves nothing. This module identifies the
-image by decoding its header and enforces hard limits BEFORE any pixel data is decoded, so a
-small compressed file cannot expand into a huge bitmap (decompression bomb). Only then does it
-decode fully, because `Image.verify()` accepts truncated JPEGs that the vision service would
-later reject.
+image by decoding its header and checks hard limits BEFORE any pixel data is decoded, so a
+small compressed file cannot expand into a huge bitmap (decompression bomb). Only after those
+limits pass does it decode the pixels once, because `verify()` alone accepts truncated JPEGs.
 
-It validates only. It never rewrites, resizes, rotates or re-encodes: orientation and resizing
-are preprocessing, which belongs to the vision service.
+It validates only. It never rewrites, resizes, or re-encodes: orientation and resizing are
+preprocessing, which belongs to the vision service.
 """
 
 import io
@@ -62,6 +61,7 @@ def validate_image(data: bytes, limits: ImageLimits) -> ValidatedImage:
     """Return the image if it is a supported, readable, in-limits JPEG/PNG/WEBP.
 
     Raises a `ClientInputError` subclass otherwise. CPU-bound: call from a worker thread.
+    Peak memory while decoding is bounded by `limits.max_pixels`.
     """
     if not data:
         raise InvalidImageError("empty upload", public_message="The uploaded file is empty.")
@@ -73,7 +73,7 @@ def validate_image(data: bytes, limits: ImageLimits) -> ValidatedImage:
 
     try:
         with Image.open(io.BytesIO(data)) as image:
-            width, height = image.size  # header only; no pixels decoded yet
+            width, height = image.size
             try:
                 image_format = ImageFormat(image.format)
             except ValueError:
@@ -87,12 +87,18 @@ def validate_image(data: bytes, limits: ImageLimits) -> ValidatedImage:
                 raise InvalidImageError(
                     f"{width}x{height} is below the {limits.min_side_px}px minimum side",
                     public_message=(
-                        "The image is too small. Each side must be at least "
+                        f"The image is too small. Each side must be at least "
                         f"{limits.min_side_px} pixels."
                     ),
                 )
-            image.load()  # full decode: raises on truncated or corrupt data
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
+            image.load()  # full decode: catches truncated and corrupt pixel data
+    except (
+        UnidentifiedImageError,
+        OSError,
+        SyntaxError,
+        ValueError,
+        Image.DecompressionBombError,
+    ) as exc:
         raise InvalidImageError(f"cannot decode image: {exc}") from exc
 
     return ValidatedImage(data=data, format=image_format, width=width, height=height)

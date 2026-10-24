@@ -2,9 +2,14 @@ import unittest
 from datetime import UTC, datetime
 
 from app.domain.analysis import LimitationCode, build_coverage, limitations_for, summarize
-from app.domain.errors import ErrorCode, UnknownDefectClassError, VisionBadResponseError
+from app.domain.errors import ErrorCode, UnknownDefectClassError
 from app.domain.models import Assessment, AssessmentStatus, BoundingBox, Detection
-from app.domain.taxonomy import ECX_TAXONOMY, DefectCategory, DefectClass, DefectTaxonomy
+from app.domain.taxonomy import (
+    ECX_TAXONOMY,
+    DefectCategory,
+    DefectClass,
+    DefectTaxonomy,
+)
 
 BOX = BoundingBox(0, 0, 1, 1)
 
@@ -39,16 +44,6 @@ class TaxonomyTests(unittest.TestCase):
             ECX_TAXONOMY.from_vision_label("Mystery Spot")
         self.assertIs(caught.exception.code, ErrorCode.INFERENCE_FAILED)
 
-    def test_resolve_accepts_matching_or_absent_vision_category(self) -> None:
-        self.assertEqual(ECX_TAXONOMY.resolve("Full Black", "Primary Defect").key, "full_black")
-        self.assertEqual(ECX_TAXONOMY.resolve("Full Black", None).key, "full_black")
-
-    def test_resolve_rejects_category_drift_between_services(self) -> None:
-        with self.assertRaises(VisionBadResponseError):
-            ECX_TAXONOMY.resolve("Full Black", "Secondary Defect")
-        with self.assertRaises(VisionBadResponseError):
-            ECX_TAXONOMY.resolve("Full Black", "Healthy")
-
     def test_duplicate_keys_and_labels_are_rejected(self) -> None:
         a = DefectClass("a", "A", DefectCategory.PRIMARY, vision_label="x")
         with self.assertRaises(ValueError):
@@ -77,9 +72,7 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(summary.primary_count, 1)
         self.assertEqual(summary.secondary_count, 2)
         first = summary.by_class[0]
-        self.assertEqual(
-            (first.defect.name, first.count, first.mean_confidence), ("Partial Black", 2, 0.7)
-        )
+        self.assertEqual((first.defect.name, first.count, first.mean_confidence), ("Partial Black", 2, 0.7))
 
 
 class LimitationTests(unittest.TestCase):
@@ -97,18 +90,20 @@ class LimitationTests(unittest.TestCase):
 
 
 class AssessmentInvariantTests(unittest.TestCase):
-    def test_status_without_matching_payload_is_rejected(self) -> None:
+    def test_failed_assessment_must_carry_an_error_code(self) -> None:
         with self.assertRaises(ValueError):
             Assessment(
                 assessment_id="a", owner_id="o", status=AssessmentStatus.FAILED,
                 created_at=datetime.now(UTC), processing_time_ms=0, image_sha256="x",
                 result=None, error_code=None, idempotency_key=None,
             )
+
+    def test_completed_assessment_must_carry_a_result(self) -> None:
         with self.assertRaises(ValueError):
             Assessment(
                 assessment_id="a", owner_id="o", status=AssessmentStatus.COMPLETED,
                 created_at=datetime.now(UTC), processing_time_ms=0, image_sha256="x",
-                result=None, error_code=ErrorCode.INFERENCE_FAILED, idempotency_key=None,
+                result=None, error_code=None, idempotency_key=None,
             )
 
     def test_failed_factory_drops_the_idempotency_key(self) -> None:

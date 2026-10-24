@@ -1,102 +1,84 @@
-"""Assessment routes. HTTP in, HTTP out: parse the request, call the service, map the result.
-
-No business logic, no boto3/httpx, no error-response building (see `error_handlers`).
-"""
-
 from typing import Annotated
 
 from fastapi import APIRouter, File, Header, Query, Response, UploadFile, status
+from fastapi import Path as PathParam
 
-from app.api.dependencies import PrincipalDep, ServiceDep
+from app.api.dependencies import AssessmentServiceDep, CurrentUserDep
 from app.api.mappers import to_assessment_out, to_completed_out, to_list_out
+from app.api.openapi import error_responses
 from app.api.uploads import read_upload
 from app.schemas.assessments import AssessmentListOut, AssessmentOut, CompletedAssessmentOut
-from app.schemas.errors import ErrorResponse
 
-router = APIRouter(prefix="/assessments", tags=["Assessments"])
-
-_ERRORS: dict[int | str, dict[str, object]] = {
-    status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
-    status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
-    status.HTTP_409_CONFLICT: {"model": ErrorResponse},
-    status.HTTP_413_REQUEST_ENTITY_TOO_LARGE: {"model": ErrorResponse},
-    status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: {"model": ErrorResponse},
-    status.HTTP_422_UNPROCESSABLE_ENTITY: {"model": ErrorResponse},
-    status.HTTP_502_BAD_GATEWAY: {"model": ErrorResponse},
-    status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorResponse},
-    status.HTTP_504_GATEWAY_TIMEOUT: {"model": ErrorResponse},
-}
+router = APIRouter(prefix="/api/v1/assessments", tags=["assessments"])
 
 
 @router.post(
     "",
-    response_model=CompletedAssessmentOut,
     status_code=status.HTTP_201_CREATED,
-    responses={status.HTTP_200_OK: {"model": CompletedAssessmentOut}, **_ERRORS},
-    summary="Create an assessment from a green coffee sample photo",
+    response_model=CompletedAssessmentOut,
+    summary="Analyse a green coffee sample photo",
     description=(
-        "Runs the full workflow synchronously. Returns 201 for a new assessment. Send an "
-        "`Idempotency-Key` header to make retries safe: the same key with the same image "
-        "returns the original result with 200; the same key with a different image is a 409. "
-        "A failure after the request was accepted is recorded as a failed assessment and the "
-        "error response carries its `assessment_id`."
+        "Needs a signed-in user. Photos that do not show green coffee are rejected with "
+        "`IMAGE_NOT_COFFEE` (422); their `error.details.is_coffee` is false. "
+        "Send an `Idempotency-Key` header to make retries safe."
     ),
+    responses={
+        200: {
+            "model": CompletedAssessmentOut,
+            "description": "An earlier assessment with the same Idempotency-Key and image.",
+        },
+        **error_responses(400, 401, 413, 415, 422, 429, 502, 503, 504),
+    },
 )
-
 async def create_assessment(
+    image: Annotated[UploadFile, File(description="JPEG, PNG or WEBP photo of the sample.")],
     response: Response,
-    service: ServiceDep,
-    principal: PrincipalDep,
-    file: Annotated[UploadFile, File(description="JPEG, PNG or WEBP photo of the sample.")],
+    service: AssessmentServiceDep,
+    user: CurrentUserDep,
     idempotency_key: Annotated[
         str | None,
         Header(
-            alias="Idempotency-Key",
             min_length=1,
             max_length=128,
-            pattern=r"^[A-Za-z0-9._:-]+$",
-            description="Client-chosen unique key, e.g. a UUID, reused when retrying.",
+            description="Any unique string per upload attempt. Reuse it only to retry.",
         ),
     ] = None,
 ) -> CompletedAssessmentOut:
-
-    data = await read_upload(file, service.max_upload_bytes)
+    data = await read_upload(image, service.max_upload_bytes)
     outcome = await service.create_assessment(
-        data=data, owner_id=principal.user_id, idempotency_key=idempotency_key
+        data=data, owner_id=user.user_id, idempotency_key=idempotency_key
     )
-    body = to_completed_out(outcome.view)
-    if outcome.created:
-        response.headers["Location"] = f"/api/v1/assessments/{body.assessment_id}"
-    else:
+    if not outcome.created:
         response.status_code = status.HTTP_200_OK
-    return body
+    return to_completed_out(outcome.view)
 
 
 @router.get(
     "",
     response_model=AssessmentListOut,
-    responses=_ERRORS,
-    summary="List your assessments, newest first",
+    summary="Your assessment history, newest first",
+    responses=error_responses(401, 422),
 )
 async def list_assessments(
-    service: ServiceDep,
-    principal: PrincipalDep,
+    service: AssessmentServiceDep,
+    user: CurrentUserDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     cursor: Annotated[str | None, Query(max_length=512, description="From `next_cursor`.")] = None,
 ) -> AssessmentListOut:
-
-    page = await service.list_assessments(owner_id=principal.user_id, limit=limit, cursor=cursor)
+    page = await service.list_assessments(owner_id=user.user_id, limit=limit, cursor=cursor)
     return to_list_out(page)
 
 
 @router.get(
     "/{assessment_id}",
     response_model=AssessmentOut,
-    responses=_ERRORS,
-    summary="Get one assessment (completed or failed), with fresh image URLs",
+    summary="One of your assessments",
+    responses=error_responses(401, 404),
 )
 async def get_assessment(
-    assessment_id: str, service: ServiceDep, principal: PrincipalDep
+    assessment_id: Annotated[str, PathParam(min_length=1, max_length=64)],
+    service: AssessmentServiceDep,
+    user: CurrentUserDep,
 ) -> AssessmentOut:
-    view = await service.get_assessment(assessment_id=assessment_id, owner_id=principal.user_id)
+    view = await service.get_assessment(assessment_id=assessment_id, owner_id=user.user_id)
     return to_assessment_out(view)

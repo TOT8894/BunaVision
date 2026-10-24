@@ -1,70 +1,102 @@
 # BunaVision backend
 
-FastAPI orchestrator. It validates uploads, calls the **vision service over HTTP**, asks Gemini
-for a bilingual advisory, stores images and records, and serves them. It contains no detection
-logic and imports nothing from `vision/` or `frontend/`.
+Python, FastAPI, PostgreSQL. It owns the public API: sign-in, photo upload, history, and the
+administrator tools. It never imports vision code: detection happens in the vision service,
+reached over HTTP only. It contains no computer-vision logic.
 
-Results are **preliminary AI predictions**. There is no grade, export eligibility, cupping
-analysis or bean total: the vision model only localizes 3 of the 13 ECX defect classes, so none
-of those can be computed truthfully.
+Results are preliminary AI predictions, never official grades.
 
-## Layers (dependencies point downward only)
+## Layout
 
 ```
-app/api/        routes, middleware, error handlers, mappers   HTTP only, no business logic
-app/schemas/    public Pydantic models (the frontend contract)
-app/services/   assessment workflow, image validation, ports  no HTTP, boto3, httpx or SDKs
-app/domain/     taxonomy, analysis rules, entities, errors     pure Python, no I/O
-app/adapters/   vision_client, gemini, storage (S3), db        implement the ports
-app/core/       settings, logging, clock, ids, security
-app/container.py  composition root (the only place that knows concrete classes)
-app/main.py       app factory
+app/
+  api/        HTTP only: routers, dependencies, error mapping, middleware, mappers
+  schemas/    public API models (the contract the frontend generates types from)
+  services/   workflows: assessments, auth, admin; ports.py lists everything they need
+  domain/     pure rules and vocabulary: taxonomy, models, errors, users, operations
+  adapters/   implementations of the ports
+    vision_client/  HTTP client for the vision service (detect + reload-model)
+    gemini/         advisory writer (structured output; prompts.py holds prompt and schema)
+    storage/        S3 and in-memory image stores
+    db/             PostgreSQL repositories (+ in-memory ones for tests)
+    security/       scrypt password hashing, JWT tokens
+  core/       settings, logging, clock, ids
+  container.py   the one place that wires ports to adapters
+migrations/   Alembic (async)
+scripts/      create_admin.py, export_openapi.py
 ```
 
-## API
+Dependencies point inward: `api -> services -> domain`, and `adapters -> services.ports`.
 
-| Method | Path | |
-|---|---|---|
-| POST | `/api/v1/assessments` | multipart field `file`; optional `Idempotency-Key` header. 201 new, 200 replay |
-| GET | `/api/v1/assessments` | `limit` (1-100), opaque `cursor`; newest first |
-| GET | `/api/v1/assessments/{id}` | completed or failed, with fresh image URLs |
-| GET | `/health` | liveness only |
-
-All errors use `{"error": {code, message, request_id, assessment_id}}`. `/detect` and
-`/reload-model` belong to the vision service and no longer exist here.
-
-## Run
+## Run it
 
 ```bash
-cd backend
-python -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt
-cp .env.example .env        # fill in the required values
-uvicorn app.main:app_factory --factory --reload --port 8000
+cp .env.example .env            # then fill in the required values
+docker run -d --name bunavision-db -e POSTGRES_USER=bunavision \
+  -e POSTGRES_PASSWORD=change-me -e POSTGRES_DB=bunavision -p 5432:5432 postgres:16
+pip install -r requirements.txt
+alembic upgrade head                                   # create the tables
+python -m scripts.create_admin --email you@example.com  # prompts for a password
+uvicorn app.main:create_app --factory --port 8000
 ```
 
-Tests: `pytest` (or `python -m unittest discover -s tests/unit -t .` with only Pillow installed).
-Checks: `ruff check . && mypy`. Contract: `python -m scripts.export_openapi`.
+The app refuses to start (with a message saying what to do) if a required setting is missing,
+the database is unreachable, or migrations have not been applied. Docs: `/docs`.
 
-## Behaviour worth knowing
+## Endpoints (`/api/v1`)
 
-* Bad input is rejected before any work and not recorded. A dependency failure after that is
-  recorded as a `failed` assessment (status + error code, never an empty success).
-* Zero detections is a valid `completed` result. Vision errors, unknown defect classes and
-  category disagreements between the services fail the assessment.
-* Images are written only after every step that can fail has succeeded, and deleted again if
-  the final save fails.
-* The same `Idempotency-Key` with the same image replays the original result; a different image
-  is a 409.
+| Method and path | Who | Purpose |
+|---|---|---|
+| `POST /auth/register` | anyone | create an account (role `user`) |
+| `POST /auth/login` | anyone | email + password -> bearer token |
+| `GET /auth/me` | signed in | the current user |
+| `POST /assessments` | signed in | upload a photo (multipart field `image`); optional `Idempotency-Key` header |
+| `GET /assessments` | signed in | your history, newest first, cursor-paginated (`limit`, `cursor`) |
+| `GET /assessments/{id}` | signed in | one of your assessments |
+| `GET /admin/assessments` | admin | every user's attempts; filter `status`, `error_code`, `owner_id` |
+| `GET /admin/assessments/{id}` | admin | one attempt from any user |
+| `GET /admin/model-versions` | admin | vision model + validator versions that produced results |
+| `GET /admin/overview?window_hours=24` | admin | outcome counts: completed, failed by error code |
+| `GET /admin/limits` | admin | the upload, quota and timeout limits being enforced |
+| `POST /admin/vision/reload-model` | admin | ask the vision service to reload its model |
+| `GET /health` | anyone | liveness |
 
-## Open decisions
+Admin duties map to the spec's section 5.3 stories: failures recorded (`/admin/assessments`,
+`/admin/overview`), model versions recorded (`/admin/model-versions`), limits (`/admin/limits`,
+enforced by the request-size middleware, image validation, the per-user hourly quota, and the
+concurrent-assessment cap).
 
-* **Database.** Only an in-memory repository exists (`ASSESSMENT_STORE=memory`). Implement
-  `AssessmentRepository` for DynamoDB or PostgreSQL in `app/adapters/db/` and add the enum
-  value and one `case` in `container.py`.
-* **Authentication.** `get_principal` returns one shared demo user. Everything else is already
-  owner-scoped.
-* **Image URLs.** `IMAGE_STORE=memory` URLs are not fetchable; use S3 (or MinIO) to see images.
-* **Upload field name.** `file`, matching the vision service. The older spec says `image`.
-* **Model/ECX facts to confirm.** Minimum image side (320 px) and the 13-class inventory in
-  `app/domain/taxonomy.py`.
+An admin cannot be created over HTTP. Use `scripts/create_admin.py`.
+
+## Photos that are not coffee
+
+The vision service gates every photo. If it decides the photo is not green coffee beans, the
+backend answers `422` with `error.code = "IMAGE_NOT_COFFEE"` and
+`error.details = { is_coffee: false, coffee_confidence, threshold }`. That is not a processing
+failure: nothing is stored, nothing counts against failure statistics, and Gemini is not
+called. A completed assessment carries `result.image_check` (`is_coffee: true`, confidence and
+validator version).
+
+## Rules the code keeps
+
+- No fallbacks or fabricated results. A failed dependency is an error, never "zero detections".
+  Zero detections is a valid completed result.
+- Failures after the request was accepted are recorded (status `failed` + error code), so admins
+  can see them. Bad input and rejected photos are not recorded.
+- Counts are numbers of detections (bounding boxes), never bean counts. The old bean totals,
+  healthy-bean count, defect percentage, grade, export eligibility and cupping notes are gone:
+  the vision model cannot support them.
+- Class coverage ("only 3 of 13 ECX classes are scanned") is derived from `domain/taxonomy.py`.
+  An unknown vision label fails the assessment instead of being guessed.
+- Gemini only ever sees the detector's counts, never the image or user text.
+- Every result stores the vision model version and coffee-validator version.
+
+## Open items
+
+- Login has no brute-force throttle yet (scrypt cost is the only friction). Add per-IP/email
+  limits before exposing it publicly.
+- No refresh tokens: access tokens last `ACCESS_TOKEN_TTL_S` (default 1 hour), then log in again.
+- `IMAGE_STORE=memory` is development only. Use `s3` (or MinIO via `S3_ENDPOINT_URL`) to show
+  images in the frontend.
+- Quotas and the concurrency cap are provisional numbers: choose them from real usage.
+- `requirements.txt` has version ranges; lock it (`pip-compile`) before building images.

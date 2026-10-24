@@ -1,14 +1,14 @@
 """Gemini implementation of the `AdvisoryGenerator` port.
 
-Uses Gemini's structured output (`response_schema`), so the reply is shaped by the API, then
+Uses Gemini's structured output (`response_schema`) so the reply is shaped by the API, then
 validates it again here. Any failure is an explicit `DependencyError`: there is no offline or
 canned advisory, because a made-up advisory would look like a real one.
 
-SDK surface relied on (checked by introspecting google-genai in an earlier session; re-check
-after upgrading): `client.aio.models.generate_content` is a coroutine; `GenerateContentConfig`
-accepts `system_instruction`, `response_mime_type`, `response_schema`, `temperature`,
-`max_output_tokens`, `http_options`; failures derive from `google.genai.errors.APIError`;
-`response.text` is None when there is no text.
+SDK behaviour relied on (checked against google-genai 2.32.0 by the previous session's
+introspection, not re-checked here): `client.aio.models.generate_content` is a coroutine,
+`GenerateContentConfig` accepts `system_instruction`, `response_mime_type`, `response_schema`,
+`temperature`, `max_output_tokens` and `http_options`, errors derive from
+`google.genai.errors.APIError`, and `response.text` is None when there is no text.
 """
 
 import asyncio
@@ -46,7 +46,6 @@ class GeminiAdvisoryGenerator:
         timeout_s: float,
         max_output_tokens: int,
     ) -> None:
-        """`client` lifecycle belongs to the caller (the container closes it)."""
         self._client = client
         self._model = model
         self._timeout_s = timeout_s
@@ -85,8 +84,7 @@ class GeminiAdvisoryGenerator:
 
         if not 1 <= len(payload.recommendations) <= MAX_RECOMMENDATIONS:
             raise AdvisoryInvalidError(
-                f"expected 1-{MAX_RECOMMENDATIONS} recommendations, "
-                f"got {len(payload.recommendations)}"
+                f"expected 1-{MAX_RECOMMENDATIONS} recommendations, got {len(payload.recommendations)}"
             )
         return Advisory(
             generator_model=self._model,

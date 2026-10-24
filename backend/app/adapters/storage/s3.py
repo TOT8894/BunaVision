@@ -2,9 +2,9 @@
 
 Buckets must be private. Images are served through short-lived presigned URLs created at
 response time, so no public URL is ever stored. boto3 is synchronous, so every call runs in a
-worker thread to keep the event loop free (presigning may also touch the credential chain).
+worker thread to keep the event loop free (presigning can also touch the credential chain).
 
-Credentials come from the default AWS chain (IAM role in production); nothing is configured
+Credentials come from the default AWS chain (IAM role in production). Nothing is configured
 here. The task role needs only s3:PutObject, s3:GetObject and s3:DeleteObject on the bucket.
 """
 

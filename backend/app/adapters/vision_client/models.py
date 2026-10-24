@@ -1,16 +1,12 @@
-"""Transport models for the vision service's `POST /detect` response.
+"""Transport models for the vision service's responses.
 
-Declared from `contracts/vision-api/` (the vision OpenAPI). Only the fields the backend uses
-are modelled; everything else is ignored, so vision can add fields without breaking us.
+These declare ONLY the fields the backend uses, and ignore everything else. The vision
+service may add or drop other fields (`total_beans`, `healthy_beans`, `defect_counts`,
+`category`, ...) without breaking us: counts and categories are derived here from the
+detections, so there is one source of truth for each.
 
-Deliberately NOT consumed: `total_beans` and `healthy_beans` (vision cannot count healthy
-beans and reports -1), `defect_counts` (we derive counts from the detections, so there is one
-source of truth), and `confidence`/`category` as decisions (the taxonomy decides categories;
-vision's `category` is read only to detect drift).
-
-`detected_beans` is REQUIRED here even though the vision schema gives it a default: a missing
-list must read as a broken response, never as "zero detections". The service calls each
-detection a "bean"; it is one defect instance, and the domain model says so.
+Note on naming: the vision service calls each detection a "bean" (`detected_beans`). It is
+one defect instance, not a bean. The domain model uses the accurate word.
 """
 
 from typing import Self
@@ -39,22 +35,44 @@ class VisionDetection(BaseModel):
     box: VisionBox
     class_name: str = Field(min_length=1)
     confidence: float = Field(ge=0, le=1)
-    category: str = Field(min_length=1)
 
 
 class VisionDetectResponse(BaseModel):
+    """`POST /detect` 200 body. The coffee-gate fields are required: if vision stops sending
+    them, the backend fails loudly rather than assume the photo was checked."""
+
     model_config = ConfigDict(extra="ignore")
 
     model_version: str = Field(min_length=1)
-    defect_beans: int = Field(ge=0)
+    validator_version: str = Field(min_length=1)
+    is_coffee: bool
+    coffee_confidence: float = Field(ge=0, le=1)
     detected_beans: list[VisionDetection]
     annotated_image_base64: str | None = None
 
-    @model_validator(mode="after")
-    def _count_matches_list(self) -> Self:
-        # Integrity check: a truncated list must not pass as a smaller, valid result.
-        if self.defect_beans != len(self.detected_beans):
-            raise ValueError(
-                f"defect_beans={self.defect_beans} but {len(self.detected_beans)} detections listed"
-            )
-        return self
+
+class VisionRejectionDetail(BaseModel):
+    """`detail` of the 400 vision sends when the coffee gate rejects a photo."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    code: str
+    message: str = ""
+    confidence: float = Field(ge=0, le=1)
+    threshold: float | None = Field(default=None, ge=0, le=1)
+
+
+class VisionRejection(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    detail: VisionRejectionDetail
+
+
+class VisionReloadResponse(BaseModel):
+    """`POST /reload-model` 200 body. `model_path` is deliberately not read: it is a server
+    filesystem path and has no business in our API."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    reloaded: bool
+    engine: str = Field(min_length=1)

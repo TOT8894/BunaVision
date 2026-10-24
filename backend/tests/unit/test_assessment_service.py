@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import unittest
 from collections.abc import Callable
@@ -12,9 +13,10 @@ from app.domain.errors import (
     IdempotencyKeyReusedError,
     InvalidImageError,
     InvalidRequestError,
+    NotCoffeeImageError,
     PersistenceError,
+    RateLimitedError,
     UnknownDefectClassError,
-    VisionBadResponseError,
     VisionTimeoutError,
     VisionUnavailableError,
 )
@@ -46,6 +48,8 @@ class ServiceTestCase(unittest.IsolatedAsyncioTestCase):
         advisor: FakeAdvisor | None = None,
         retain: bool = True,
         wrap_repo: Callable[[Any], Any] | None = None,
+        per_hour: int = 1000,
+        concurrent: int = 8,
     ) -> AssessmentService:
         self.images = InMemoryImageStore()
         self.repo = InMemoryAssessmentRepository()
@@ -62,6 +66,8 @@ class ServiceTestCase(unittest.IsolatedAsyncioTestCase):
             new_id=CountingIds(),
             image_url_ttl_s=900,
             retain_original_image=retain,
+            max_assessments_per_hour=per_hour,
+            max_concurrent_assessments=concurrent,
         )
 
 
@@ -77,19 +83,11 @@ class CreateAssessmentTests(ServiceTestCase):
         assert result is not None
         self.assertEqual(result.model_version, "test-model-1")
         self.assertEqual(
-            (
-                result.summary.detection_count,
-                result.summary.primary_count,
-                result.summary.secondary_count,
-            ),
+            (result.summary.detection_count, result.summary.primary_count, result.summary.secondary_count),
             (3, 1, 2),
         )
-        self.assertEqual(
-            self.images.keys(), {result.original_image_key, result.annotated_image_key}
-        )
-        assert outcome.view.original_image_url is not None
-        self.assertTrue(outcome.view.original_image_url.startswith("memory://"))
-        self.assertEqual(outcome.view.image_url_ttl_s, 900)
+        self.assertEqual(self.images.keys(), {result.original_image_key, result.annotated_image_key})
+        self.assertTrue(outcome.view.original_image_url.startswith("memory://"))  # type: ignore[union-attr]
         self.assertEqual(self.advisor.seen[0].summary.detection_count, 3)
 
     async def test_zero_detections_is_a_valid_completed_result(self) -> None:
@@ -116,6 +114,71 @@ class CreateAssessmentTests(ServiceTestCase):
         self.assertIsNone(outcome.view.annotated_image_url)
 
 
+class CoffeeGateTests(ServiceTestCase):
+    async def test_a_passing_check_is_kept_with_the_result(self) -> None:
+        service = self.build()
+        outcome = await service.create_assessment(data=make_image(), owner_id=OWNER)
+        result = outcome.view.assessment.result
+        assert result is not None
+        self.assertEqual(result.image_check.validator_version, "test-validator-1")
+        self.assertAlmostEqual(result.image_check.coffee_confidence, 0.97)
+
+    async def test_a_non_coffee_photo_is_rejected_and_not_recorded(self) -> None:
+        rejection = NotCoffeeImageError("gate", coffee_confidence=0.02, threshold=0.75)
+        service = self.build(vision=FakeVision(error=rejection))
+        with self.assertRaises(NotCoffeeImageError) as caught:
+            await service.create_assessment(data=make_image(), owner_id=OWNER)
+        self.assertEqual(
+            caught.exception.public_details,
+            {"is_coffee": False, "coffee_confidence": 0.02, "threshold": 0.75},
+        )
+        page = await self.repo.list_for_owner(OWNER, limit=10, cursor=None)
+        self.assertEqual(page.items, ())  # a wrong photo is not a processing failure
+        self.assertEqual(self.images.keys(), set())
+        self.assertEqual(self.advisor.seen, [])  # no Gemini spend on a rejected photo
+
+
+class LimitTests(ServiceTestCase):
+    async def test_hourly_quota_blocks_the_next_assessment_but_not_replays(self) -> None:
+        service = self.build(per_hour=2)
+        data = make_image()
+        await service.create_assessment(data=data, owner_id=OWNER, idempotency_key="k1")
+        await service.create_assessment(data=make_image(seed=90), owner_id=OWNER)
+
+        with self.assertRaises(RateLimitedError):
+            await service.create_assessment(data=make_image(seed=40), owner_id=OWNER)
+        replay = await service.create_assessment(data=data, owner_id=OWNER, idempotency_key="k1")
+        self.assertFalse(replay.created)  # a replay costs nothing, so it is still allowed
+        other = await service.create_assessment(data=make_image(), owner_id="someone-else")
+        self.assertTrue(other.created)  # quotas are per user
+
+    async def test_failed_attempts_count_towards_the_quota(self) -> None:
+        service = self.build(vision=FakeVision(error=VisionUnavailableError("down")), per_hour=1)
+        with self.assertRaises(VisionUnavailableError):
+            await service.create_assessment(data=make_image(), owner_id=OWNER)
+        with self.assertRaises(RateLimitedError):
+            await service.create_assessment(data=make_image(), owner_id=OWNER)
+
+    async def test_busy_service_rejects_instead_of_queueing(self) -> None:
+        gate = asyncio.Event()
+
+        class BlockingVision(FakeVision):
+            async def detect(self, image):  # noqa: ANN001, ANN202
+                await gate.wait()
+                return await super().detect(image)
+
+        service = self.build(vision=BlockingVision(THREE), concurrent=1)
+        first = asyncio.create_task(service.create_assessment(data=make_image(), owner_id=OWNER))
+        await asyncio.sleep(0)  # let the first request take the only slot
+        with self.assertRaises(RateLimitedError):
+            await service.create_assessment(data=make_image(seed=90), owner_id=OWNER)
+        gate.set()
+        self.assertTrue((await first).created)
+        # the slot is free again afterwards
+        again = await service.create_assessment(data=make_image(seed=40), owner_id=OWNER)
+        self.assertTrue(again.created)
+
+
 class FailureTests(ServiceTestCase):
     async def assert_failed_and_recorded(self, code: ErrorCode, assessment_id: str = "asmt_0001") -> None:
         record = await self.repo.get(assessment_id, OWNER)
@@ -132,12 +195,6 @@ class FailureTests(ServiceTestCase):
         await self.assert_failed_and_recorded(ErrorCode.INFERENCE_FAILED)
         self.assertEqual(self.images.keys(), set())
         self.assertEqual(self.advisor.seen, [])
-
-    async def test_category_drift_between_services_fails_loudly(self) -> None:
-        service = self.build(vision=FakeVision((raw("Full Black", category="Secondary Defect"),)))
-        with self.assertRaises(VisionBadResponseError):
-            await service.create_assessment(data=make_image(), owner_id=OWNER)
-        await self.assert_failed_and_recorded(ErrorCode.INFERENCE_FAILED)
 
     async def test_vision_outage_and_timeout_keep_distinct_codes(self) -> None:
         for error, code in (
@@ -189,9 +246,9 @@ class IdempotencyTests(ServiceTestCase):
 
     async def test_same_key_with_a_different_image_is_rejected(self) -> None:
         service = self.build()
-        await service.create_assessment(data=make_image(), owner_id=OWNER, idempotency_key="k1")
+        await service.create_assessment(data=make_image(seed=64), owner_id=OWNER, idempotency_key="k1")
         with self.assertRaises(IdempotencyKeyReusedError):
-            await service.create_assessment(data=make_image(), owner_id=OWNER, idempotency_key="k1")
+            await service.create_assessment(data=make_image(seed=90), owner_id=OWNER, idempotency_key="k1")
         self.assertEqual(self.vision.calls, 1)
 
     async def test_keys_are_scoped_per_owner(self) -> None:
@@ -214,9 +271,7 @@ class IdempotencyTests(ServiceTestCase):
     async def test_losing_a_race_replays_the_winner_and_cleans_up(self) -> None:
         data = make_image()
         scratch = self.build()
-        winner = (
-            await scratch.create_assessment(data=data, owner_id=OWNER, idempotency_key="k")
-        ).view.assessment
+        winner = (await scratch.create_assessment(data=data, owner_id=OWNER, idempotency_key="k")).view.assessment
 
         service = self.build(wrap_repo=lambda inner: RacyRepository(inner, winner))
         outcome = await service.create_assessment(data=data, owner_id=OWNER, idempotency_key="k")

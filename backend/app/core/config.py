@@ -10,22 +10,21 @@ Rules this module enforces:
 
 from enum import StrEnum
 from functools import lru_cache
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _MIB = 1024 * 1024
-MULTIPART_OVERHEAD_BYTES = _MIB  # headroom above the image limit for multipart framing
+
+
+class ConfigurationError(Exception):
+    """Settings are individually valid but inconsistent with each other."""
 
 
 class ImageStoreBackend(StrEnum):
-    MEMORY = "memory"  # dev/test only: images vanish on restart and URLs are not fetchable
+    MEMORY = "memory"  # dev/test only: images are lost on restart and URLs are not fetchable
     S3 = "s3"
-
-
-class AssessmentStoreBackend(StrEnum):
-    MEMORY = "memory"  # dev/test only: records vanish on restart. Database choice is still open.
 
 
 class Settings(BaseSettings):
@@ -35,12 +34,14 @@ class Settings(BaseSettings):
     vision_service_url: AnyHttpUrl
     gemini_api_key: SecretStr
     gemini_model: str = Field(min_length=1)
-    """Model ids get retired (gemini-2.5-flash has a published shutdown date). Check
-    https://ai.google.dev/gemini-api/docs/deprecations before choosing one."""
+    """Check Google's Gemini deprecations page before choosing: models are retired."""
     image_store: ImageStoreBackend
-    assessment_store: AssessmentStoreBackend
+    database_url: SecretStr
+    """`postgresql+asyncpg://user:password@host:5432/dbname`. Secret: it contains the password."""
+    jwt_secret: SecretStr
+    """Signs access tokens. At least 32 characters; generate with `openssl rand -hex 32`."""
 
-    # Required when image_store == "s3" (enforced below).
+    # Required when image_store == "s3" (checked by the container at startup).
     s3_bucket: str | None = None
     s3_region: str | None = None
     s3_endpoint_url: AnyHttpUrl | None = None
@@ -48,18 +49,27 @@ class Settings(BaseSettings):
 
     # --- Optional, with documented defaults ---------------------------------------------
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
-    """Comma-separated browser origins. Empty means no cross-origin access."""
+    """Comma-separated list of allowed browser origins. Empty disables CORS."""
 
     max_image_bytes: int = Field(default=10 * _MIB, gt=0)
-    max_image_pixels: int = Field(default=40_000_000, gt=0)
-    """Decoded images cost ~3-4 bytes/pixel in memory; keep this bounded."""
+    max_image_pixels: int = Field(default=50_000_000, gt=0)
     min_image_side_px: int = Field(default=320, gt=0)
     """Provisional: confirm against the vision model's input requirements."""
 
     retain_original_image: bool = True
     image_url_ttl_s: int = Field(default=900, gt=0, le=604_800)
 
+    db_pool_size: int = Field(default=5, gt=0)
+    db_max_overflow: int = Field(default=5, ge=0)
+    access_token_ttl_s: int = Field(default=3600, gt=0, le=86_400)
+
+    max_assessments_per_user_per_hour: int = Field(default=30, gt=0)
+    """Provisional: pick from real usage. Counts failed attempts too, since they cost compute."""
+    max_concurrent_assessments: int = Field(default=4, gt=0)
+    """Per process. Extra requests are rejected with 429 rather than queued."""
+
     vision_timeout_s: float = Field(default=30.0, gt=0)
+    vision_reload_timeout_s: float = Field(default=60.0, gt=0)
     vision_connect_timeout_s: float = Field(default=3.0, gt=0)
     gemini_timeout_s: float = Field(default=30.0, gt=0)
     gemini_temperature: float = Field(default=0.2, ge=0, le=2)
@@ -68,9 +78,19 @@ class Settings(BaseSettings):
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
-    @property
-    def max_body_bytes(self) -> int:
-        return self.max_image_bytes + MULTIPART_OVERHEAD_BYTES
+    @field_validator("database_url")
+    @classmethod
+    def _async_postgres_only(cls, value: SecretStr) -> SecretStr:
+        if not value.get_secret_value().startswith("postgresql+asyncpg://"):
+            raise ValueError("DATABASE_URL must start with postgresql+asyncpg://")
+        return value
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def _strong_secret(cls, value: SecretStr) -> SecretStr:
+        if len(value.get_secret_value()) < 32:
+            raise ValueError("JWT_SECRET must be at least 32 characters")
+        return value
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod
@@ -85,12 +105,6 @@ class Settings(BaseSettings):
         if "*" in origins:
             raise ValueError("wildcard origins are not allowed; list the real frontend origins")
         return origins
-
-    @model_validator(mode="after")
-    def _s3_needs_bucket_and_region(self) -> Self:
-        if self.image_store is ImageStoreBackend.S3 and not (self.s3_bucket and self.s3_region):
-            raise ValueError("S3_BUCKET and S3_REGION are required when IMAGE_STORE=s3")
-        return self
 
 
 @lru_cache

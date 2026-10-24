@@ -14,6 +14,13 @@ class ErrorBody(BaseModel):
     assessment_id: str | None = Field(
         default=None, description="Set when a failed attempt was recorded under an id."
     )
+    details: dict[str, str | float | bool] | None = Field(
+        default=None,
+        description=(
+            "Machine-readable facts about the error. For IMAGE_NOT_COFFEE: `is_coffee` (false), "
+            "`coffee_confidence`, and `threshold` when known."
+        ),
+    )
 
 
 class ErrorResponse(BaseModel):
