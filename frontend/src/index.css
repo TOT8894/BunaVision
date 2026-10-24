@@ -1,0 +1,89 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-coffee-50: #faf7f2;
+  --color-coffee-100: #f1e9dc;
+  --color-coffee-200: #e2d2be;
+  --color-coffee-600: #7b4e31;
+  --color-coffee-700: #593d2b;
+  --color-coffee-800: #422d20;
+  --color-coffee-900: #2c1e15;
+  --color-leaf-600: #2d7353;
+  --color-leaf-700: #1f5d42;
+  --color-leaf-800: #164330;
+  --color-honey-500: #d99a38;
+}
+
+@layer base {
+  body {
+    @apply min-w-80 font-sans antialiased;
+  }
+
+  a {
+    @apply underline-offset-4;
+  }
+}
+
+@keyframes scanbeam {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 98%;
+    opacity: 0.8;
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes shimmerEffect {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-scanbeam {
+  animation: scanbeam 3s ease-in-out infinite alternate;
+}
+
+.animate-float {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.shimmer-badge {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmerEffect 2.5s infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(89, 61, 43, 0.2);
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(248, 246, 240, 0.2);
+}
