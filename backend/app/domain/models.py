@@ -3,9 +3,9 @@
 Plain frozen dataclasses: no Pydantic, no FastAPI, no AWS. The public API models live in
 `app.schemas`; these are what the workflow reasons about and what repositories store.
 
-Deliberately NOT here: total bean count, healthy bean count, defect percentage, grade, export
-eligibility, cupping notes. The vision model only localizes defects, so none of those can be
-computed truthfully, and several are outside the product's scope.
+What is deliberately NOT here: total bean count, healthy bean count, defect percentage, grade,
+export eligibility, cupping notes. The vision model only localizes defects, so none of those
+can be computed truthfully yet, and several are outside the product's scope.
 """
 
 from dataclasses import dataclass
@@ -29,10 +29,8 @@ class BoundingBox:
 
 @dataclass(frozen=True, slots=True)
 class Detection:
-    """One defect instance the vision model located (one bounding box)."""
-
     defect: DefectClass
-    confidence: float  # model confidence in [0, 1]; 
+    confidence: float  # model confidence in [0, 1]; not a probability of being correct
     box: BoundingBox
 
 
@@ -47,15 +45,15 @@ class ClassTally:
 class DetectionSummary:
     """Counts of *detections* (defect instances found). Not bean counts."""
 
-    detection_count: int # total defects found across all classes
-    primary_count: int 
-    secondary_count: int 
+    detection_count: int
+    primary_count: int
+    secondary_count: int
     by_class: tuple[ClassTally, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class Coverage:
-    """Which ECX defect classes the vision model scans for, and which it does not."""
+    """Which ECX defect classes the vision model scanned for, and which it did not."""
 
     scanned: tuple[DefectClass, ...]
     not_scanned: tuple[DefectClass, ...]
@@ -82,8 +80,21 @@ class AssessmentStatus(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ImageCheck:
+    """Outcome of the vision service's "is this green coffee?" gate for an accepted photo.
+
+    Photos that fail the gate never become assessments (see `NotCoffeeImageError`), so every
+    stored check is a pass; the confidence and validator version are kept for traceability.
+    """
+
+    coffee_confidence: float
+    validator_version: str
+
+
+@dataclass(frozen=True, slots=True)
 class AssessmentResult:
     model_version: str
+    image_check: ImageCheck
     detections: tuple[Detection, ...]
     summary: DetectionSummary
     coverage: Coverage
@@ -97,7 +108,7 @@ class Assessment:
     """A completed assessment carries a result; a failed one carries an error code. Never both.
 
     `image_sha256` fingerprints the uploaded bytes so an idempotent retry can prove it is the
-    same request instead of silently returning another image's result.
+    same request, instead of silently returning another image's result.
     """
 
     assessment_id: str
