@@ -1,7 +1,11 @@
+import asyncio
 import unittest
 
+from starlette.requests import Request
+
+from app.api.error_handlers import _domain_error
 from app.api.error_status import STATUS_BY_CODE
-from app.domain.errors import BunaVisionError, ErrorCode
+from app.domain.errors import BunaVisionError, ErrorCode, RateLimitedError
 
 
 def _all_error_classes(base: type[BunaVisionError]) -> list[type[BunaVisionError]]:
@@ -24,6 +28,12 @@ class ErrorStatusTests(unittest.TestCase):
         for cls in _all_error_classes(BunaVisionError):
             with self.subTest(cls=cls.__name__):
                 self.assertIn(cls.code, STATUS_BY_CODE)
+
+    def test_rate_limit_response_includes_retry_after(self) -> None:
+        request = Request({"type": "http", "headers": [], "method": "POST", "path": "/"})
+        response = asyncio.run(_domain_error(request, RateLimitedError("quota", retry_after_s=17)))
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.headers["retry-after"], "17")
 
 
 if __name__ == "__main__":

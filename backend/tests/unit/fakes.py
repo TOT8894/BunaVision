@@ -120,6 +120,9 @@ class FlakyRepository:
     async def count_since(self, owner_id: str, since: datetime) -> int:
         return await self._inner.count_since(owner_id, since)
 
+    async def oldest_since(self, owner_id: str, since: datetime) -> datetime | None:
+        return await self._inner.oldest_since(owner_id, since)
+
 
 class RacyRepository:
     """Simulates two same-key requests racing: our pre-check misses, our `add` loses."""
@@ -149,6 +152,9 @@ class RacyRepository:
 
     async def count_since(self, owner_id: str, since: datetime) -> int:
         return await self._inner.count_since(owner_id, since)
+
+    async def oldest_since(self, owner_id: str, since: datetime) -> datetime | None:
+        return await self._inner.oldest_since(owner_id, since)
 
 
 class FakeVisionAdmin:

@@ -76,6 +76,14 @@ class PostgresAssessmentRepository:
             async with self._sessions() as session:
                 return int((await session.execute(statement)).scalar_one())
 
+    async def oldest_since(self, owner_id: str, since: datetime) -> datetime | None:
+        statement = select(func.min(t.c.created_at)).where(
+            t.c.owner_id == owner_id, t.c.created_at >= since
+        )
+        with database_errors("finding the oldest recent assessment"):
+            async with self._sessions() as session:
+                return (await session.execute(statement)).scalar_one()
+
     # --- AssessmentAdminQueries -------------------------------------------------------
 
     async def get_any(self, assessment_id: str) -> Assessment | None:

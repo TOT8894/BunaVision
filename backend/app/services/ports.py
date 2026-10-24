@@ -121,6 +121,10 @@ class AssessmentRepository(Protocol):
         """Assessments (completed or failed) the owner created at or after `since`."""
         ...
 
+    async def oldest_since(self, owner_id: str, since: datetime) -> datetime | None:
+        """Oldest counted attempt, used to report when one hourly quota slot frees."""
+        ...
+
 
 class AssessmentAdminQueries(Protocol):
     """Cross-user, read-only views for administrators."""

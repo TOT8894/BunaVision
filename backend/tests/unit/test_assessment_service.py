@@ -138,7 +138,62 @@ class CoffeeGateTests(ServiceTestCase):
         self.assertEqual(self.advisor.seen, [])  # no Gemini spend on a rejected photo
 
 
+class PresignedUrlFailureTests(ServiceTestCase):
+    async def test_signing_failure_does_not_leave_a_completed_assessment(self) -> None:
+        class BrokenSigningStore(InMemoryImageStore):
+            async def url_for(self, key: str, ttl_s: int) -> str:
+                raise PersistenceError("presigning unavailable")
+
+        self.images = BrokenSigningStore()
+        self.repo = InMemoryAssessmentRepository()
+        service = AssessmentService(
+            vision=FakeVision(THREE),
+            advisor=FakeAdvisor(),
+            images=self.images,
+            repository=self.repo,
+            taxonomy=ECX_TAXONOMY,
+            limits=ImageLimits(max_bytes=10 * MIB, max_pixels=50_000_000, min_side_px=320),
+            clock=FixedClock(),
+            new_id=CountingIds(),
+            image_url_ttl_s=900,
+            retain_original_image=True,
+            max_assessments_per_hour=1000,
+            max_concurrent_assessments=8,
+        )
+        with self.assertRaises(PersistenceError):
+            await service.create_assessment(data=make_image(), owner_id=OWNER)
+
+        page = await self.repo.list_for_owner(OWNER, limit=10, cursor=None)
+        self.assertEqual(len(page.items), 1)
+        self.assertIs(page.items[0].status, AssessmentStatus.FAILED)
+        self.assertEqual(self.images.keys(), set())
+
+
 class LimitTests(ServiceTestCase):
+    async def test_concurrent_same_owner_cannot_bypass_hourly_quota(self) -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class BlockingVision(FakeVision):
+            async def detect(self, image):  # noqa: ANN001, ANN202
+                started.set()
+                await release.wait()
+                return await super().detect(image)
+
+        service = self.build(vision=BlockingVision(THREE), per_hour=1, concurrent=2)
+        first = asyncio.create_task(service.create_assessment(data=make_image(), owner_id=OWNER))
+        await started.wait()
+        with self.assertRaises(RateLimitedError) as caught:
+            await service.create_assessment(data=make_image(seed=3), owner_id=OWNER)
+        self.assertEqual(caught.exception.retry_after_s, 1)
+        release.set()
+        await first
+        with self.assertRaises(RateLimitedError) as quota:
+            await service.create_assessment(data=make_image(seed=7), owner_id=OWNER)
+        self.assertEqual(quota.exception.retry_after_s, 3599)
+        page = await self.repo.list_for_owner(OWNER, limit=10, cursor=None)
+        self.assertEqual(len(page.items), 1)
+
     async def test_hourly_quota_blocks_the_next_assessment_but_not_replays(self) -> None:
         service = self.build(per_hour=2)
         data = make_image()
@@ -232,6 +287,34 @@ class FailureTests(ServiceTestCase):
 
 
 class IdempotencyTests(ServiceTestCase):
+    async def test_concurrent_same_key_waits_and_replays_the_first_result(self) -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class BlockingVision(FakeVision):
+            async def detect(self, image):  # noqa: ANN001, ANN202
+                started.set()
+                await release.wait()
+                return await super().detect(image)
+
+        service = self.build(vision=BlockingVision(THREE))
+        data = make_image()
+        first_task = asyncio.create_task(
+            service.create_assessment(data=data, owner_id=OWNER, idempotency_key="same-key")
+        )
+        await started.wait()
+        second_task = asyncio.create_task(
+            service.create_assessment(data=data, owner_id=OWNER, idempotency_key="same-key")
+        )
+        await asyncio.sleep(0)
+        release.set()
+        first, second = await asyncio.gather(first_task, second_task)
+
+        self.assertTrue(first.created)
+        self.assertFalse(second.created)
+        self.assertEqual(first.view.assessment.assessment_id, second.view.assessment.assessment_id)
+        self.assertEqual(self.vision.calls, 1)
+
     async def test_retry_with_same_key_and_image_returns_the_first_result(self) -> None:
         service = self.build()
         data = make_image()

@@ -14,6 +14,8 @@ from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 _MIB = 1024 * 1024
 
@@ -81,8 +83,31 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def _async_postgres_only(cls, value: SecretStr) -> SecretStr:
-        if not value.get_secret_value().startswith("postgresql+asyncpg://"):
+        raw = value.get_secret_value()
+        if not raw.strip():
+            raise ValueError("DATABASE_URL must not be empty")
+        if not raw.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL must start with postgresql+asyncpg://")
+        try:
+            parsed = make_url(raw)
+        except (ArgumentError, ValueError) as exc:
+            raise ValueError("DATABASE_URL must be a valid PostgreSQL URL") from exc
+        if not parsed.database:
+            raise ValueError("DATABASE_URL must include a database name")
+        return value
+
+    @field_validator("gemini_api_key")
+    @classmethod
+    def _nonempty_gemini_key(cls, value: SecretStr) -> SecretStr:
+        if not value.get_secret_value().strip():
+            raise ValueError("GEMINI_API_KEY must not be empty")
+        return value
+
+    @field_validator("gemini_model")
+    @classmethod
+    def _nonempty_gemini_model(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("GEMINI_MODEL must not be empty")
         return value
 
     @field_validator("jwt_secret")

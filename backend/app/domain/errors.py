@@ -144,6 +144,17 @@ class RateLimitedError(ClientInputError):
     code = ErrorCode.RATE_LIMITED
     public_message = "Too many requests. Please try again later."
 
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        retry_after_s: int = 60,
+        public_message: str | None = None,
+        public_details: Mapping[str, str | float | bool] | None = None,
+    ) -> None:
+        super().__init__(detail, public_message=public_message, public_details=public_details)
+        self.retry_after_s = max(1, retry_after_s)
+
 
 class AssessmentNotFoundError(ClientInputError):
     code = ErrorCode.ASSESSMENT_NOT_FOUND

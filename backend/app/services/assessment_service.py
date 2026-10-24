@@ -15,13 +15,15 @@ Failure policy (no fallbacks, no fabricated results):
   can fail has succeeded, and are deleted again if the final save fails or the request is
   cancelled.
 * An idempotent retry gets the stored result only if it carries the same image bytes.
-* Load is bounded two ways: a per-user hourly quota (counted in the database, so it holds
-  across processes) and a cap on assessments running at once in this process.
+* Load is bounded two ways: a per-user hourly quota (completed and failed attempts are counted
+  from the database, and same-owner admission is serialized in this service instance) and a cap
+  on assessments running at once in this process.
 """
 
 import asyncio
 import hashlib
 import logging
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -110,6 +112,8 @@ class AssessmentService:
         self._retain_original_image = retain_original_image
         self._max_per_hour = max_assessments_per_hour
         self._slots = asyncio.Semaphore(max_concurrent_assessments)
+        self._owner_guard = asyncio.Lock()
+        self._owner_events: dict[str, asyncio.Event] = {}
 
     @property
     def max_upload_bytes(self) -> int:
@@ -125,21 +129,48 @@ class AssessmentService:
             earlier = await self._repository.find_by_idempotency_key(owner_id, idempotency_key)
             if earlier is not None:
                 return await self._replay(earlier, image_sha256)  # replays cost no quota
-
-        await self._enforce_hourly_quota(owner_id)
-        # Reject instead of queueing: a queue of slow requests is how a service falls over.
-        if self._slots.locked():
-            raise RateLimitedError(
-                "all assessment slots are busy",
-                public_message="The service is busy. Please try again in a moment.",
-            )
-        async with self._slots:
-            return await self._create(
-                data=data,
-                owner_id=owner_id,
-                idempotency_key=idempotency_key,
-                image_sha256=image_sha256,
-            )
+        # The count and final repository insert must not race for the same owner in this
+        # process. Reject a concurrent owner request (rather than queueing it) so the first
+        # attempt is counted before another request checks the hourly quota.
+        while True:
+            async with self._owner_guard:
+                owner_event = self._owner_events.get(owner_id)
+                if owner_event is None:
+                    owner_event = asyncio.Event()
+                    self._owner_events[owner_id] = owner_event
+                    break
+            if idempotency_key is None:
+                raise RateLimitedError(
+                    "an assessment for this owner is already running",
+                    public_message="The service is busy. Please try again in a moment.",
+                    retry_after_s=1,
+                )
+            # Preserve concurrent idempotent replay: wait for the first request, then look up
+            # its outcome again. If it failed without retaining the key, this request retries.
+            await owner_event.wait()
+            earlier = await self._repository.find_by_idempotency_key(owner_id, idempotency_key)
+            if earlier is not None:
+                return await self._replay(earlier, image_sha256)
+        try:
+            await self._enforce_hourly_quota(owner_id)
+            # Reject instead of queueing: a queue of slow requests is how a service falls over.
+            if self._slots.locked():
+                raise RateLimitedError(
+                    "all assessment slots are busy",
+                    public_message="The service is busy. Please try again in a moment.",
+                    retry_after_s=1,
+                )
+            async with self._slots:
+                return await self._create(
+                    data=data,
+                    owner_id=owner_id,
+                    idempotency_key=idempotency_key,
+                    image_sha256=image_sha256,
+                )
+        finally:
+            async with self._owner_guard:
+                self._owner_events.pop(owner_id, None)
+                owner_event.set()
 
     async def _create(
         self, *, data: bytes, owner_id: str, idempotency_key: str | None, image_sha256: str
@@ -150,6 +181,7 @@ class AssessmentService:
         assessment_id = self._new_id()
         created_at = self._clock.now()
         started = self._clock.monotonic()
+        assessment: Assessment | None = None
         try:
             assessment = await self._run_pipeline(
                 assessment_id=assessment_id,
@@ -160,26 +192,33 @@ class AssessmentService:
                 created_at=created_at,
                 started=started,
             )
+            # Sign image URLs before committing a completed row. A signing failure must not
+            # leave a completed assessment behind when the create request returns an error.
+            view = await self._view(assessment)
+            await self._repository.add(assessment)
         except DuplicateIdempotencyKeyError as exc:
             # A concurrent request with the same key finished first. Replay its result.
+            await self._cleanup_assessment_images(assessment)
             if idempotency_key is None:
                 raise PersistenceError("duplicate key reported for a keyless request") from exc
             earlier = await self._repository.find_by_idempotency_key(owner_id, idempotency_key)
             if earlier is None:
                 raise PersistenceError("idempotency conflict but no stored assessment") from exc
             return await self._replay(earlier, image_sha256)
-        except DependencyError as exc:
-            exc.assessment_id = assessment_id
-            await self._record_failure(
-                assessment_id=assessment_id,
-                owner_id=owner_id,
-                created_at=created_at,
-                started=started,
-                image_sha256=image_sha256,
-                error=exc,
-            )
+        except BaseException as exc:
+            await self._cleanup_assessment_images(assessment)
+            if isinstance(exc, DependencyError):
+                exc.assessment_id = assessment_id
+                await self._record_failure(
+                    assessment_id=assessment_id,
+                    owner_id=owner_id,
+                    created_at=created_at,
+                    started=started,
+                    image_sha256=image_sha256,
+                    error=exc,
+                )
             raise
-        return CreateOutcome(await self._view(assessment), created=True)
+        return CreateOutcome(view, created=True)
 
     async def get_assessment(self, *, assessment_id: str, owner_id: str) -> AssessmentView:
         assessment = await self._repository.get(assessment_id, owner_id)
@@ -243,13 +282,19 @@ class AssessmentService:
                 annotated_image_key=keys.annotated,
             ),
         )
-        try:
-            await self._repository.add(assessment)
-        except BaseException:
-            # Cleanup, then re-raise unchanged. BaseException so cancellation also cleans up.
-            await self._discard_images(keys.present())
-            raise
         return assessment
+
+    async def _cleanup_assessment_images(self, assessment: Assessment | None) -> None:
+        if assessment is not None and assessment.result is not None:
+            keys = [
+                key
+                for key in (
+                    assessment.result.original_image_key,
+                    assessment.result.annotated_image_key,
+                )
+                if key is not None
+            ]
+            await self._discard_images(keys)
 
     async def _store_images(
         self, assessment_id: str, image: ValidatedImage, annotated: bytes | None
@@ -313,15 +358,23 @@ class AssessmentService:
     # --- Helpers -----------------------------------------------------------------------
 
     async def _enforce_hourly_quota(self, owner_id: str) -> None:
-        since = self._clock.now() - timedelta(hours=1)
+        now = self._clock.now()
+        since = now - timedelta(hours=1)
         used = await self._repository.count_since(owner_id, since)
         if used >= self._max_per_hour:
+            oldest = await self._repository.oldest_since(owner_id, since)
+            retry_after_s = (
+                3600
+                if oldest is None
+                else max(1, math.ceil((oldest + timedelta(hours=1) - now).total_seconds()))
+            )
             raise RateLimitedError(
                 f"owner {owner_id} used {used}/{self._max_per_hour} assessments this hour",
                 public_message=(
                     f"Hourly limit of {self._max_per_hour} assessments reached. "
                     "Please try again later."
                 ),
+                retry_after_s=retry_after_s,
             )
 
     async def _replay(self, earlier: Assessment, image_sha256: str) -> CreateOutcome:

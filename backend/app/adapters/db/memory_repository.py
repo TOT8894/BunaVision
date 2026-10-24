@@ -74,6 +74,14 @@ class InMemoryAssessmentRepository:
             1 for a in self._by_id.values() if a.owner_id == owner_id and a.created_at >= since
         )
 
+    async def oldest_since(self, owner_id: str, since: datetime) -> datetime | None:
+        timestamps = (
+            a.created_at
+            for a in self._by_id.values()
+            if a.owner_id == owner_id and a.created_at >= since
+        )
+        return min(timestamps, default=None)
+
     # --- AssessmentAdminQueries -------------------------------------------------------
 
     async def get_any(self, assessment_id: str) -> Assessment | None:

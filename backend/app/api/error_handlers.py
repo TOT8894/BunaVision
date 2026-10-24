@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.envelope import error_response
 from app.api.error_status import STATUS_BY_CODE
-from app.domain.errors import BunaVisionError, ClientInputError, ErrorCode
+from app.domain.errors import BunaVisionError, ClientInputError, ErrorCode, RateLimitedError
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +30,16 @@ async def _domain_error(request: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, ClientInputError):
         logger.warning("request failed: %s (%s)", exc.code, exc)
     status_code = STATUS_BY_CODE[exc.code]
+    headers = {"WWW-Authenticate": "Bearer"} if status_code == _UNAUTHORIZED else {}
+    if isinstance(exc, RateLimitedError):
+        headers["Retry-After"] = str(exc.retry_after_s)
     return error_response(
         code=exc.code,
         message=exc.public_message,
         status_code=status_code,
         assessment_id=exc.assessment_id,
         details=exc.public_details,
-        headers={"WWW-Authenticate": "Bearer"} if status_code == _UNAUTHORIZED else None,
+        headers=headers or None,
     )
 
 
