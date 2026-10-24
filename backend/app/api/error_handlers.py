@@ -14,6 +14,7 @@ from app.domain.errors import BunaVisionError, ClientInputError, ErrorCode
 logger = logging.getLogger(__name__)
 
 _MAX_VALIDATION_ISSUES = 5
+_UNAUTHORIZED = 401
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -28,11 +29,14 @@ async def _domain_error(request: Request, exc: Exception) -> JSONResponse:
         raise exc
     if not isinstance(exc, ClientInputError):
         logger.warning("request failed: %s (%s)", exc.code, exc)
+    status_code = STATUS_BY_CODE[exc.code]
     return error_response(
         code=exc.code,
         message=exc.public_message,
-        status_code=STATUS_BY_CODE[exc.code],
+        status_code=status_code,
         assessment_id=exc.assessment_id,
+        details=exc.public_details,
+        headers={"WWW-Authenticate": "Bearer"} if status_code == _UNAUTHORIZED else None,
     )
 
 

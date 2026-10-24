@@ -2,13 +2,9 @@
 
 * `RequestContextMiddleware` gives every request an id, exposes it to logs, and returns it in
   the `X-Request-ID` response header.
-* `RequestSizeLimitMiddleware` stops oversized bodies before they are parsed or spooled:
-  first from the declared Content-Length, then by counting bytes as they stream in, which also
-  covers chunked uploads that declare no length.
-
-Why the streaming path drops the app's response: FastAPI converts any exception raised while
-it reads a body into its own generic 400. So once the limit is exceeded we remember that fact,
-swallow whatever the app tries to send, and answer 413 ourselves.
+* `RequestSizeLimitMiddleware` stops oversized bodies BEFORE they are parsed or spooled:
+  first from the declared Content-Length, then by counting bytes as they stream in, which
+  also covers chunked uploads that declare no length.
 """
 
 import re
@@ -44,9 +40,7 @@ class RequestContextMiddleware:
             return
 
         incoming = _header(scope, REQUEST_ID_HEADER.lower().encode())
-        request_id = (
-            incoming if incoming and _ACCEPTABLE_REQUEST_ID.match(incoming) else uuid.uuid4().hex
-        )
+        request_id = incoming if incoming and _ACCEPTABLE_REQUEST_ID.match(incoming) else uuid.uuid4().hex
         token = request_id_var.set(request_id)
 
         async def send_with_request_id(message: Message) -> None:
@@ -80,33 +74,28 @@ class RequestSizeLimitMiddleware:
             return
 
         received = 0
-        exceeded = False
         response_started = False
 
         async def limited_receive() -> Message:
-            nonlocal received, exceeded
+            nonlocal received
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > self._max:
-                    exceeded = True
                     raise _BodyTooLargeError
             return message
 
-        async def guarded_send(message: Message) -> None:
+        async def tracking_send(message: Message) -> None:
             nonlocal response_started
-            if exceeded:
-                return  # discard the app's own (generic) error response
             if message["type"] == "http.response.start":
                 response_started = True
             await send(message)
 
         try:
-            await self.app(scope, limited_receive, guarded_send)
-        except Exception:
-            if not exceeded:
+            await self.app(scope, limited_receive, tracking_send)
+        except _BodyTooLargeError:
+            if response_started:
                 raise
-        if exceeded and not response_started:
             await self._reject(scope, receive, send)
 
     async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
