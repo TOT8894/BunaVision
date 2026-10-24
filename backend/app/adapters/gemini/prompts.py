@@ -1,8 +1,8 @@
 """Everything Gemini is told, and the exact shape it must answer in.
 
-Two things live here and nowhere else: the instruction text and the response schema. The
-schema is enforced by Gemini itself (structured output); the adapter re-validates the reply,
-so the prompt only has to explain the task, not format JSON.
+Two things live here and nowhere else: the instruction text, and the response schema. The
+schema is enforced by Gemini itself (structured output), and the same model re-validates the
+reply on our side; the prompt only has to explain the task, not format JSON.
 
 Gemini never receives the image or any user-supplied text. It sees only facts derived from our
 own taxonomy and the detector's counts, so there is nothing for a prompt injection to ride on.
@@ -46,7 +46,7 @@ class BilingualPayload(BaseModel):
 
 
 class AdvisoryPayload(BaseModel):
-    """Response schema sent to Gemini. Kept simple: only descriptions, no numeric limits.
+    """Response schema sent to Gemini. Kept simple on purpose: only descriptions, no limits.
 
     Stricter checks (non-empty, script, count) run in `advisor.py` after parsing, because the
     schema subset Gemini accepts is narrower than what we want to enforce.
