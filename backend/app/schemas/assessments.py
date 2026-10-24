@@ -2,7 +2,6 @@
 
 Counts are exact about what they count: a *detection* is one defect instance the vision model
 located (one bounding box). Nothing here is a bean count, a grade, or a verified finding.
-Every field name has one meaning on every path; there is no second "offline" shape.
 """
 
 from datetime import datetime
@@ -84,8 +83,19 @@ class ImagesOut(ApiModel):
     )
 
 
+class ImageCheckOut(ApiModel):
+    """The coffee gate. Photos that fail it are rejected with IMAGE_NOT_COFFEE instead."""
+
+    is_coffee: Literal[True] = Field(
+        default=True, description="Always true on a completed assessment."
+    )
+    coffee_confidence: float = Field(ge=0, le=1, description="Validator confidence it is coffee.")
+    validator_version: str
+
+
 class AssessmentResultOut(ApiModel):
     model_version: str = Field(description="Version of the vision model that found the defects.")
+    image_check: ImageCheckOut
     summary: SummaryOut
     detections: list[DetectionOut]
     coverage: CoverageOut
@@ -139,6 +149,4 @@ AssessmentListItemOut = Annotated[
 
 class AssessmentListOut(ApiModel):
     items: list[AssessmentListItemOut]
-    next_cursor: str | None = Field(
-        description="Pass as `cursor` for the next page; null at the end. Opaque."
-    )
+    next_cursor: str | None = Field(description="Pass as `cursor` for the next page; null at the end.")
