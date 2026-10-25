@@ -1,13 +1,20 @@
 # Vision Model Artifacts
 
-This directory stores trained model weights, checkpoints, and class manifests for defect detection:
+The serving pipeline loads two ONNX models:
 
-- **best.onnx**: Production ONNX Runtime weights (CPU inference, 640x640 input, 7 output channels). This is the only model executed by the serving pipeline.
-- **best.pt**: PyTorch / Ultralytics checkpoint (fine-tuned YOLOv8 Nano). Retained strictly for retraining in `vision/training/train_yolov8_coffee.ipynb`; never loaded in the production serving path.
-- **classes.json**: Model bundle manifest specifying defect class IDs, raw labels, model version, checkpoint name, and dataset license (`CC BY 4.0`).
+| Artifact | Purpose | Version source |
+|---|---|---|
+| `best_validator.onnx` | MobileNetV3-Small coffee / non-coffee domain classifier; 224×224 RGB input, two logits | `validator_config.json` |
+| `best.onnx` | YOLOv8n detector for Full Black, Partial Black, and Coffee Husk / Parchment; 640×640 RGB input | `classes.json` |
 
-### Model Loading & Validation
+`validator_config.json` defines the validator class order, coffee class index, confidence threshold, preprocessing values, and `model_version`. `classes.json` maps YOLO class IDs to raw dataset labels and defines the YOLO model version.
 
-1. **Pure ONNX Serving**: The service loads `best.onnx` directly using ONNX Runtime CPUExecutionProvider. PyTorch and Ultralytics are excluded from the serving runtime.
-2. **Fail-Fast Invariant**: During startup and hot-reload, the engine validates that `best.onnx` and `classes.json` exist and that the ONNX output tensor dimensions match the expected shape (`[1, 7, 8400]`). If weights or manifests are missing or corrupted, the service fails fast with an explicit error.
-3. **No Mock Fallback**: The service never serves fabricated detections or falls back to synthetic mock data.
+`best.pt` is retained as a training checkpoint only; serving uses ONNX Runtime for both stages.
+
+## Startup and Reload
+
+At startup, the service loads and validates both ONNX models and both configuration files. It refuses to start if an artifact is missing, invalid, or has an incompatible output shape. The validator output must have one logit per configured label; the detector output must contain four box coordinates and one score per configured defect class.
+
+`POST /reload-model` builds a new model bundle and swaps it in only after both models load successfully. If either load fails, the active bundle remains in use.
+
+No mock or synthetic inference fallback is used.

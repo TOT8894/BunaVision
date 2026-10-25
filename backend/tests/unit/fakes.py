@@ -1,72 +1,43 @@
-"""Hand-written fakes for the service ports. No mocking library needed."""
+"""Hand-written fakes for the service ports. Real in-memory adapters stand in for storage."""
 
 import io
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from PIL import Image
 
-from app.domain.errors import BunaVisionError, DuplicateIdempotencyKeyError, PersistenceError
+from app.domain.errors import BunaVisionError, PersistenceError
 from app.domain.models import (
     Advisory,
     Assessment,
     AssessmentPage,
     BilingualText,
     BoundingBox,
+    ImageCheck,
 )
 from app.services.image_validation import ValidatedImage
 from app.services.ports import AdvisoryFacts, RawDetection, VisionOutput
 
-BOX = BoundingBox(10, 10, 50, 50)
-JPEG_BYTES = b"\xff\xd8\xff\xe0fake-annotated-jpeg"
 
-
-def make_image(seed: int = 64, size: tuple[int, int] = (400, 400), fmt: str = "JPEG") -> bytes:
+def make_image(fmt: str = "JPEG", size: tuple[int, int] = (400, 400), seed: int = 64) -> bytes:
+    """A valid noisy image; `seed` changes the bytes so two images are never identical."""
     image = Image.effect_noise(size, seed).convert("RGB")
     buffer = io.BytesIO()
     image.save(buffer, format=fmt)
     return buffer.getvalue()
 
 
-def raw(label: str, confidence: float = 0.9, category: str | None = None) -> RawDetection:
-    return RawDetection(label=label, confidence=confidence, box=BOX, reported_category=category)
-
-
-class FixedClock:
-    """Wall clock frozen; monotonic advances 5 ms per read so durations are non-zero."""
-
-    def __init__(self) -> None:
-        self._ticks = 0
-
-    def now(self) -> datetime:
-        return datetime(2026, 10, 21, 8, 0, tzinfo=UTC)
-
-    def monotonic(self) -> float:
-        self._ticks += 1
-        return self._ticks * 0.005
-
-
-class CountingIds:
-    def __init__(self) -> None:
-        self._n = 0
-
-    def __call__(self) -> str:
-        self._n += 1
-        return f"asmt_{self._n:04d}"
+def raw(label: str, confidence: float = 0.9) -> RawDetection:
+    return RawDetection(label=label, confidence=confidence, box=BoundingBox(1.0, 2.0, 30.0, 40.0))
 
 
 class FakeVision:
     def __init__(
-        self,
-        detections: tuple[RawDetection, ...] = (),
-        *,
-        error: BunaVisionError | None = None,
-        annotated: bytes | None = JPEG_BYTES,
-        model_version: str = "test-model-1",
+        self, detections: tuple[RawDetection, ...] = (), *, error: BunaVisionError | None = None,
+        annotated: bytes | None = b"\xff\xd8\xff-annotated",
     ) -> None:
         self._detections = detections
         self.error = error
         self._annotated = annotated
-        self._model_version = model_version
         self.calls = 0
 
     async def detect(self, image: ValidatedImage) -> VisionOutput:
@@ -74,7 +45,8 @@ class FakeVision:
         if self.error is not None:
             raise self.error
         return VisionOutput(
-            model_version=self._model_version,
+            model_version="test-model-1",
+            image_check=ImageCheck(coffee_confidence=0.97, validator_version="test-validator-1"),
             detections=self._detections,
             annotated_image=self._annotated,
         )
@@ -91,15 +63,40 @@ class FakeAdvisor:
             raise self._error
         return Advisory(
             generator_model="fake-gemini",
-            summary=BilingualText(en="Summary.", am="ማጠቃለያ።"),
-            recommendations=(BilingualText(en="Verify manually.", am="በእጅ ያረጋግጡ።"),),
+            summary=BilingualText(en="Summary.", am="ማጠቃለያ"),
+            recommendations=(BilingualText(en="Sort the lot.", am="ቡናውን ይለዩ"),),
         )
 
 
-class FlakyRepository:
-    """Wraps a real repository; the first `fail_adds` calls to `add` raise PersistenceError."""
+class FixedClock:
+    """Each `now()` call advances one second so assessments sort deterministically."""
 
-    def __init__(self, inner: object, *, fail_adds: int) -> None:
+    def __init__(self) -> None:
+        self._now = datetime(2026, 10, 21, 8, 0, 0, tzinfo=UTC)
+        self._mono = 100.0
+
+    def now(self) -> datetime:
+        self._now += timedelta(seconds=1)
+        return self._now
+
+    def monotonic(self) -> float:
+        self._mono += 0.25
+        return self._mono
+
+
+class CountingIds:
+    def __init__(self) -> None:
+        self._n = 0
+
+    def __call__(self) -> str:
+        self._n += 1
+        return f"asmt_{self._n:04d}"
+
+
+class FlakyRepository:
+    """Wraps a real repository; fails the first `fail_adds` calls to `add`."""
+
+    def __init__(self, inner, *, fail_adds: int) -> None:  # noqa: ANN001
         self._inner = inner
         self._remaining = fail_adds
 
@@ -107,34 +104,62 @@ class FlakyRepository:
         if self._remaining > 0:
             self._remaining -= 1
             raise PersistenceError("simulated database outage")
-        await self._inner.add(assessment)  # type: ignore[attr-defined]
+        await self._inner.add(assessment)
 
     async def get(self, assessment_id: str, owner_id: str) -> Assessment | None:
-        return await self._inner.get(assessment_id, owner_id)  # type: ignore[attr-defined,no-any-return]
+        return await self._inner.get(assessment_id, owner_id)
 
     async def find_by_idempotency_key(self, owner_id: str, key: str) -> Assessment | None:
-        return await self._inner.find_by_idempotency_key(owner_id, key)  # type: ignore[attr-defined,no-any-return]
+        return await self._inner.find_by_idempotency_key(owner_id, key)
 
     async def list_for_owner(
         self, owner_id: str, *, limit: int, cursor: str | None
     ) -> AssessmentPage:
-        return await self._inner.list_for_owner(owner_id, limit=limit, cursor=cursor)  # type: ignore[attr-defined,no-any-return]
+        return await self._inner.list_for_owner(owner_id, limit=limit, cursor=cursor)
+
+    async def count_since(self, owner_id: str, since: datetime) -> int:
+        return await self._inner.count_since(owner_id, since)
 
 
-class RacyRepository(FlakyRepository):
-    """Simulates losing an idempotency race: the key looks free, then `add` reports a duplicate.
+class RacyRepository:
+    """Simulates two same-key requests racing: our pre-check misses, our `add` loses."""
 
-    After the failed `add`, lookups return the winner, as a real database would.
-    """
-
-    def __init__(self, inner: object, winner: Assessment) -> None:
-        super().__init__(inner, fail_adds=0)
+    def __init__(self, inner, winner: Assessment) -> None:  # noqa: ANN001
+        self._inner = inner
         self._winner = winner
-        self._lost = False
+        self._first_lookup = True
 
     async def add(self, assessment: Assessment) -> None:
-        self._lost = True
-        raise DuplicateIdempotencyKeyError("lost the race")
+        await self._inner.add(self._winner)  # the other request committed first
+        await self._inner.add(assessment)  # raises DuplicateIdempotencyKeyError
+
+    async def get(self, assessment_id: str, owner_id: str) -> Assessment | None:
+        return await self._inner.get(assessment_id, owner_id)
 
     async def find_by_idempotency_key(self, owner_id: str, key: str) -> Assessment | None:
-        return self._winner if self._lost else None
+        if self._first_lookup:
+            self._first_lookup = False
+            return None
+        return await self._inner.find_by_idempotency_key(owner_id, key)
+
+    async def list_for_owner(
+        self, owner_id: str, *, limit: int, cursor: str | None
+    ) -> AssessmentPage:
+        return await self._inner.list_for_owner(owner_id, limit=limit, cursor=cursor)
+
+    async def count_since(self, owner_id: str, since: datetime) -> int:
+        return await self._inner.count_since(owner_id, since)
+
+
+class FakeVisionAdmin:
+    def __init__(self, *, error: BunaVisionError | None = None) -> None:
+        self._error = error
+        self.reloads = 0
+
+    async def reload_model(self):  # noqa: ANN201
+        from app.domain.operations import ModelReloadResult
+
+        self.reloads += 1
+        if self._error is not None:
+            raise self._error
+        return ModelReloadResult(reloaded=True, engine="onnx")

@@ -1,13 +1,15 @@
-# Runtime dependencies. Ranges are deliberately bounded; I could not resolve exact versions
-# (no network in the authoring sandbox). Generate the lock before the first deploy:
-#   pip install -r requirements.txt && pip freeze > requirements.lock
-# and build the Docker image from requirements.lock.
-fastapi>=0.115,<1
-uvicorn[standard]>=0.30,<1
-python-multipart>=0.0.9
-pydantic>=2.7,<3
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.8,<3
 pydantic-settings>=2.7,<3
-httpx>=0.27,<1
-pillow>=10.3
-google-genai>=1.0
-boto3>=1.34
+python-multipart>=0.0.9,<1.0
+httpx>=0.27,<1.0
+pillow>=10.4
+google-genai==2.32.0
+boto3>=1.35,<2
+sqlalchemy[asyncio]>=2.0.30,<3
+asyncpg>=0.29,<1
+alembic>=1.13,<2
+PyJWT>=2.7,<3
+greenlet>=3.0
+cryptography>=42.0

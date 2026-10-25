@@ -66,10 +66,11 @@ def test_dummy_engine_injection():
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
 
-    result = service.detect(buf.getvalue())
+    result = service.detect(buf.getvalue(), validate_domain=False)
     assert result.model_version == "DummyEngine-v1"
+    assert result.validator_version == service.validator_version
     assert result.defect_beans == 1
-    assert result.total_beans == 1
+    assert result.total_beans == -1
     assert result.detected_beans[0].class_name == "Full Black"
     assert result.detected_beans[0].category == "Primary Defect"
     assert result.annotated_image_base64 is not None
@@ -116,6 +117,7 @@ def test_create_engine_missing_model_raises():
 def test_reload_failure_retains_active_engine():
     service = YOLODetectorService()
     active_engine = service.engine
+    active_validator = service.validator
     assert service.is_loaded is True
 
     # Simulate reload failure (e.g. invalid weights during hot-reload)
@@ -124,7 +126,22 @@ def test_reload_failure_retains_active_engine():
         assert success is False
         # Active engine must be preserved
         assert service.engine is active_engine
+        assert service.validator is active_validator
         assert service.is_loaded is True
+
+def test_reload_validator_failure_retains_active_model_bundle():
+    service = YOLODetectorService()
+    active_engine = service.engine
+    active_validator = service.validator
+
+    with patch(
+        "vision.core.detection.service.DomainValidator",
+        side_effect=RuntimeError("Corrupt validator"),
+    ):
+        assert service.reload_model() is False
+
+    assert service.engine is active_engine
+    assert service.validator is active_validator
 
 def test_onnx_invalid_output_shape_fails():
     mock_session = MagicMock()
@@ -173,7 +190,7 @@ def test_manifest_missing_names_key_raises():
         if temp_path.exists():
             temp_path.unlink()
 
-def test_reload_model_updates_metadata_and_classes():
+def test_reload_model_updates_metadata_and_classes(tmp_path):
     service = YOLODetectorService()
     initial_version = service.model_version
     assert initial_version == "YOLOv8n-Coffee-ONNX-v1"
@@ -187,18 +204,37 @@ def test_reload_model_updates_metadata_and_classes():
         },
         "model_version": "YOLOv8n-Coffee-ONNX-v2-Experimental",
     }
+    validator_config_data = {
+        "model_version": "MobileNetV3-Small-Coffee-ONNX-v2",
+        "labels": ["coffee", "not_coffee"],
+        "coffee_class_index": 0,
+        "confidence_threshold": 0.75,
+        "input_size": [224, 224],
+        "imagenet_mean": [0.485, 0.456, 0.406],
+        "imagenet_std": [0.229, 0.224, 0.225],
+    }
 
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(new_manifest_data, f)
-        temp_manifest = Path(f.name)
+    temp_manifest = tmp_path / "classes.json"
+    temp_manifest.write_text(json.dumps(new_manifest_data), encoding="utf-8")
+    temp_validator_config = tmp_path / "validator_config.json"
+    temp_validator_config.write_text(
+        json.dumps(validator_config_data),
+        encoding="utf-8",
+    )
 
     try:
-        success = service.reload_model(manifest_path=temp_manifest)
+        success = service.reload_model(
+            manifest_path=temp_manifest,
+            validator_config_path=temp_validator_config,
+        )
         assert success is True
         assert service.model_version == "YOLOv8n-Coffee-ONNX-v2-Experimental"
+        assert service.validator_version == "MobileNetV3-Small-Coffee-ONNX-v2"
         assert service.supported_classes == ["Full Black", "Partial Black", "Coffee Husk / Parchment"]
+
+        image_buffer = io.BytesIO()
+        Image.new("RGB", (32, 32)).save(image_buffer, format="JPEG")
+        result = service.detect(image_buffer.getvalue(), validate_domain=False)
+        assert result.validator_version == "MobileNetV3-Small-Coffee-ONNX-v2"
     finally:
-        if temp_manifest.exists():
-            temp_manifest.unlink()
-        # Restore original engine state
         service.reload_model()

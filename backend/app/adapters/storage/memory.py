@@ -1,5 +1,9 @@
-"""In-memory `ImageStore`. Development and tests only: nothing survives a restart, and the
-URLs it returns cannot be fetched by a browser. Use S3 for anything real."""
+"""In-memory image store.
+
+DEVELOPMENT AND TESTS ONLY. Images are lost on restart and the URLs it returns use a
+`memory://` scheme that no browser can fetch. Use S3 (or an S3-compatible store such as MinIO
+via S3_ENDPOINT_URL) to see real images.
+"""
 
 from collections.abc import Sequence
 
@@ -18,6 +22,10 @@ class InMemoryImageStore:
         for key in keys:
             self._objects.pop(key, None)
 
+    # --- Inspection helpers for tests -----------------------------------------------------
+
     def keys(self) -> set[str]:
-        """Test helper: which objects are currently stored."""
         return set(self._objects)
+
+    def get(self, key: str) -> tuple[bytes, str]:
+        return self._objects[key]

@@ -1,54 +1,57 @@
-import io
 import unittest
 
-from PIL import Image
-
-from app.domain.errors import ImageTooLargeError, InvalidImageError, UnsupportedImageFormatError
+from app.domain.errors import (
+    ImageTooLargeError,
+    InvalidImageError,
+    UnsupportedImageFormatError,
+)
 from app.services.image_validation import ImageFormat, ImageLimits, validate_image
 from tests.unit.fakes import make_image
 
-LIMITS = ImageLimits(max_bytes=10 * 1024 * 1024, max_pixels=1_000_000, min_side_px=320)
-
-
-def encode(fmt: str, size: tuple[int, int] = (400, 400)) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", size, (30, 120, 60)).save(buffer, format=fmt)
-    return buffer.getvalue()
+MIB = 1024 * 1024
+LIMITS = ImageLimits(max_bytes=10 * MIB, max_pixels=1_000_000, min_side_px=320)
 
 
 class ValidateImageTests(unittest.TestCase):
-    def test_accepts_jpeg_png_and_webp(self) -> None:
-        for fmt in ("JPEG", "PNG", "WEBP"):
+    def test_accepts_supported_formats_and_reports_what_it_decoded(self) -> None:
+        for fmt, expected in (("JPEG", ImageFormat.JPEG), ("PNG", ImageFormat.PNG), ("WEBP", ImageFormat.WEBP)):
             with self.subTest(fmt=fmt):
-                image = validate_image(encode(fmt), LIMITS)
-                self.assertIs(image.format, ImageFormat(fmt))
+                image = validate_image(make_image(fmt), LIMITS)
+                self.assertIs(image.format, expected)
                 self.assertEqual((image.width, image.height), (400, 400))
 
-    def test_empty_and_garbage_are_invalid(self) -> None:
+    def test_returns_the_original_bytes_untouched(self) -> None:
+        data = make_image("JPEG")
+        self.assertEqual(validate_image(data, LIMITS).data, data)
+
+    def test_rejects_empty_and_garbage(self) -> None:
         for data in (b"", b"definitely not an image"):
-            with self.subTest(data=data[:8]), self.assertRaises(InvalidImageError):
+            with self.subTest(data=data[:10]), self.assertRaises(InvalidImageError):
                 validate_image(data, LIMITS)
 
-    def test_real_image_of_an_unsupported_format_is_rejected_by_content(self) -> None:
-        with self.assertRaises(UnsupportedImageFormatError):
-            validate_image(encode("GIF"), LIMITS)
+    def test_rejects_unsupported_formats_by_decoded_content(self) -> None:
+        for fmt in ("GIF", "BMP"):
+            with self.subTest(fmt=fmt), self.assertRaises(UnsupportedImageFormatError):
+                validate_image(make_image(fmt), LIMITS)
 
-    def test_oversized_bytes_are_rejected(self) -> None:
-        small = ImageLimits(max_bytes=100, max_pixels=1_000_000, min_side_px=320)
+    def test_rejects_oversized_uploads_before_decoding(self) -> None:
+        tiny_limit = ImageLimits(max_bytes=100, max_pixels=10**9, min_side_px=1)
         with self.assertRaises(ImageTooLargeError):
-            validate_image(make_image(), small)
+            validate_image(make_image("JPEG"), tiny_limit)
 
-    def test_pixel_budget_is_checked_before_decoding(self) -> None:
+    def test_rejects_images_with_too_many_pixels(self) -> None:
+        limits = ImageLimits(max_bytes=10 * MIB, max_pixels=100_000, min_side_px=10)
         with self.assertRaises(InvalidImageError) as caught:
-            validate_image(encode("PNG", (1200, 1200)), LIMITS)  # 1.44M px > 1M
+            validate_image(make_image("JPEG", (400, 400)), limits)
         self.assertIn("resolution", caught.exception.public_message)
 
-    def test_too_small_is_rejected(self) -> None:
-        with self.assertRaises(InvalidImageError):
-            validate_image(encode("PNG", (100, 100)), LIMITS)
+    def test_rejects_images_that_are_too_small(self) -> None:
+        with self.assertRaises(InvalidImageError) as caught:
+            validate_image(make_image("PNG", (100, 100)), LIMITS)
+        self.assertIn("320", caught.exception.public_message)
 
-    def test_truncated_jpeg_is_rejected(self) -> None:
-        data = make_image()
+    def test_rejects_truncated_jpeg_which_verify_alone_would_accept(self) -> None:
+        data = make_image("JPEG")
         with self.assertRaises(InvalidImageError):
             validate_image(data[: len(data) // 2], LIMITS)
 
