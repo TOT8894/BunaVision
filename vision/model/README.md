@@ -1,10 +1,13 @@
-# Models Directory for BunaVision AI Engine
+# Vision Model Artifacts
 
-Place your trained YOLOv8 model weights here:
-- **`best.pt`**: Fine-tuned YOLOv8 nano model trained on the green coffee defect dataset using `train_yolov8_coffee.ipynb` in Google Colab.
+This directory stores trained model weights, checkpoints, and class manifests for defect detection:
 
-### How it works:
-When `best.pt` is placed in this directory:
-1. `app/services/yolo_detector.py` automatically detects and loads it.
-2. The API uses real neural network inference to predict bounding box coordinates and defect categories.
-3. If `best.pt` is not yet present, the service runs in demonstration/mock mode with graceful fallback so the backend never crashes.
+- **best.onnx**: Production ONNX Runtime weights (CPU inference, 640x640 input, 7 output channels). This is the only model executed by the serving pipeline.
+- **best.pt**: PyTorch / Ultralytics checkpoint (fine-tuned YOLOv8 Nano). Retained strictly for retraining in `vision/training/train_yolov8_coffee.ipynb`; never loaded in the production serving path.
+- **classes.json**: Model bundle manifest specifying defect class IDs, raw labels, model version, checkpoint name, and dataset license (`CC BY 4.0`).
+
+### Model Loading & Validation
+
+1. **Pure ONNX Serving**: The service loads `best.onnx` directly using ONNX Runtime CPUExecutionProvider. PyTorch and Ultralytics are excluded from the serving runtime.
+2. **Fail-Fast Invariant**: During startup and hot-reload, the engine validates that `best.onnx` and `classes.json` exist and that the ONNX output tensor dimensions match the expected shape (`[1, 7, 8400]`). If weights or manifests are missing or corrupted, the service fails fast with an explicit error.
+3. **No Mock Fallback**: The service never serves fabricated detections or falls back to synthetic mock data.

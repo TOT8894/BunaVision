@@ -1,0 +1,1092 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BunaVision Backend",
+    "description": "Public API for preliminary AI screening of green coffee samples. Results are preliminary model predictions, never an official grade.",
+    "version": "0.4.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Liveness probe",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments": {
+      "post": {
+        "tags": [
+          "Assessments"
+        ],
+        "summary": "Create an assessment from a green coffee sample photo",
+        "description": "Runs the full workflow synchronously. Returns 201 for a new assessment. Send an `Idempotency-Key` header to make retries safe: the same key with the same image returns the original result with 200; the same key with a different image is a 409. A failure after the request was accepted is recorded as a failed assessment and the error response carries its `assessment_id`.",
+        "operationId": "create_assessment_api_v1_assessments_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9._:-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-chosen unique key, e.g. a UUID, reused when retrying.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Client-chosen unique key, e.g. a UUID, reused when retrying."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_assessment_api_v1_assessments_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletedAssessmentOut"
+                }
+              }
+            }
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletedAssessmentOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Assessments"
+        ],
+        "summary": "List your assessments, newest first",
+        "operationId": "list_assessments_api_v1_assessments_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "From `next_cursor`.",
+              "title": "Cursor"
+            },
+            "description": "From `next_cursor`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentListOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/{assessment_id}": {
+      "get": {
+        "tags": [
+          "Assessments"
+        ],
+        "summary": "Get one assessment (completed or failed), with fresh image URLs",
+        "operationId": "get_assessment_api_v1_assessments__assessment_id__get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CompletedAssessmentOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FailedAssessmentOut"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "status",
+                    "mapping": {
+                      "completed": "#/components/schemas/CompletedAssessmentOut",
+                      "failed": "#/components/schemas/FailedAssessmentOut"
+                    }
+                  },
+                  "title": "Response Get Assessment Api V1 Assessments  Assessment Id  Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdvisoryOut": {
+        "properties": {
+          "generator_model": {
+            "type": "string",
+            "title": "Generator Model",
+            "description": "The AI model that wrote this text."
+          },
+          "summary": {
+            "$ref": "#/components/schemas/BilingualTextOut"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/BilingualTextOut"
+            },
+            "type": "array",
+            "title": "Recommendations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generator_model",
+          "summary",
+          "recommendations"
+        ],
+        "title": "AdvisoryOut"
+      },
+      "AssessmentListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CompletedListItemOut"
+                },
+                {
+                  "$ref": "#/components/schemas/FailedListItemOut"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "status",
+                "mapping": {
+                  "completed": "#/components/schemas/CompletedListItemOut",
+                  "failed": "#/components/schemas/FailedListItemOut"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Pass as `cursor` for the next page; null at the end. Opaque."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "AssessmentListOut"
+      },
+      "AssessmentResultOut": {
+        "properties": {
+          "model_version": {
+            "type": "string",
+            "title": "Model Version",
+            "description": "Version of the vision model that found the defects."
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SummaryOut"
+          },
+          "detections": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionOut"
+            },
+            "type": "array",
+            "title": "Detections"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageOut"
+          },
+          "limitations": {
+            "items": {
+              "$ref": "#/components/schemas/LimitationOut"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "advisory": {
+            "$ref": "#/components/schemas/AdvisoryOut"
+          },
+          "images": {
+            "$ref": "#/components/schemas/ImagesOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_version",
+          "summary",
+          "detections",
+          "coverage",
+          "limitations",
+          "advisory",
+          "images"
+        ],
+        "title": "AssessmentResultOut"
+      },
+      "BilingualTextOut": {
+        "properties": {
+          "en": {
+            "type": "string",
+            "title": "En"
+          },
+          "am": {
+            "type": "string",
+            "title": "Am",
+            "description": "Amharic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "en",
+          "am"
+        ],
+        "title": "BilingualTextOut"
+      },
+      "Body_create_assessment_api_v1_assessments_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "JPEG, PNG or WEBP photo of the sample."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_create_assessment_api_v1_assessments_post"
+      },
+      "BoundingBoxOut": {
+        "properties": {
+          "x1": {
+            "type": "number",
+            "title": "X1"
+          },
+          "y1": {
+            "type": "number",
+            "title": "Y1"
+          },
+          "x2": {
+            "type": "number",
+            "title": "X2"
+          },
+          "y2": {
+            "type": "number",
+            "title": "Y2"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "title": "BoundingBoxOut",
+        "description": "Pixel coordinates in the uploaded image; origin is the top-left corner."
+      },
+      "ClassTallyOut": {
+        "properties": {
+          "defect": {
+            "$ref": "#/components/schemas/DefectClassOut"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Detections of this class."
+          },
+          "mean_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Mean Confidence",
+            "description": "Mean model confidence over them."
+          }
+        },
+        "type": "object",
+        "required": [
+          "defect",
+          "count",
+          "mean_confidence"
+        ],
+        "title": "ClassTallyOut"
+      },
+      "CompletedAssessmentOut": {
+        "properties": {
+          "assessment_id": {
+            "type": "string",
+            "title": "Assessment Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "completed",
+            "title": "Status",
+            "default": "completed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "processing_time_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Processing Time Ms"
+          },
+          "result": {
+            "$ref": "#/components/schemas/AssessmentResultOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "created_at",
+          "processing_time_ms",
+          "result"
+        ],
+        "title": "CompletedAssessmentOut"
+      },
+      "CompletedListItemOut": {
+        "properties": {
+          "assessment_id": {
+            "type": "string",
+            "title": "Assessment Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "completed",
+            "title": "Status",
+            "default": "completed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "detection_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Detection Count"
+          },
+          "primary_detection_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Primary Detection Count"
+          },
+          "secondary_detection_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Secondary Detection Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "created_at",
+          "model_version",
+          "detection_count",
+          "primary_detection_count",
+          "secondary_detection_count"
+        ],
+        "title": "CompletedListItemOut"
+      },
+      "CoverageOut": {
+        "properties": {
+          "scanned": {
+            "items": {
+              "$ref": "#/components/schemas/DefectClassOut"
+            },
+            "type": "array",
+            "title": "Scanned",
+            "description": "Classes the model looks for."
+          },
+          "not_scanned": {
+            "items": {
+              "$ref": "#/components/schemas/DefectClassOut"
+            },
+            "type": "array",
+            "title": "Not Scanned",
+            "description": "Classes it cannot detect."
+          }
+        },
+        "type": "object",
+        "required": [
+          "scanned",
+          "not_scanned"
+        ],
+        "title": "CoverageOut"
+      },
+      "DefectCategory": {
+        "type": "string",
+        "enum": [
+          "primary",
+          "secondary"
+        ],
+        "title": "DefectCategory"
+      },
+      "DefectClassOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Stable machine identifier, e.g. 'full_black'."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "English display name."
+          },
+          "category": {
+            "$ref": "#/components/schemas/DefectCategory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "category"
+        ],
+        "title": "DefectClassOut"
+      },
+      "DetectionOut": {
+        "properties": {
+          "defect": {
+            "$ref": "#/components/schemas/DefectClassOut"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "description": "Model confidence. Not the probability the detection is correct."
+          },
+          "box": {
+            "$ref": "#/components/schemas/BoundingBoxOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "defect",
+          "confidence",
+          "box"
+        ],
+        "title": "DetectionOut"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Safe to show to a user."
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id",
+            "description": "Quote this when reporting a problem."
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id",
+            "description": "Set when a failed attempt was recorded under an id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "INVALID_IMAGE",
+          "UNSUPPORTED_FORMAT",
+          "IMAGE_TOO_LARGE",
+          "INVALID_REQUEST",
+          "IDEMPOTENCY_KEY_REUSED",
+          "ASSESSMENT_NOT_FOUND",
+          "INFERENCE_FAILED",
+          "INFERENCE_TIMEOUT",
+          "ADVISORY_FAILED",
+          "PERSISTENCE_FAILED",
+          "INTERNAL_ERROR"
+        ],
+        "title": "ErrorCode",
+        "description": "Machine-readable error vocabulary shared with the frontend."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "FailedAssessmentOut": {
+        "properties": {
+          "assessment_id": {
+            "type": "string",
+            "title": "Assessment Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "failed",
+            "title": "Status",
+            "default": "failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "processing_time_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Processing Time Ms"
+          },
+          "error_code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "created_at",
+          "processing_time_ms",
+          "error_code"
+        ],
+        "title": "FailedAssessmentOut"
+      },
+      "FailedListItemOut": {
+        "properties": {
+          "assessment_id": {
+            "type": "string",
+            "title": "Assessment Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "failed",
+            "title": "Status",
+            "default": "failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "error_code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "created_at",
+          "error_code"
+        ],
+        "title": "FailedListItemOut"
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "HealthOut",
+        "description": "Liveness only. Deliberately exposes no configuration or dependency details."
+      },
+      "ImagesOut": {
+        "properties": {
+          "original_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Url",
+            "description": "Null when original images are not retained."
+          },
+          "annotated_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annotated Url"
+          },
+          "expires_in_s": {
+            "type": "integer",
+            "title": "Expires In S",
+            "description": "Seconds the URLs stay valid. Fetch the assessment again for fresh ones."
+          }
+        },
+        "type": "object",
+        "required": [
+          "original_url",
+          "annotated_url",
+          "expires_in_s"
+        ],
+        "title": "ImagesOut"
+      },
+      "LimitationCode": {
+        "type": "string",
+        "enum": [
+          "PRELIMINARY_AI_ASSESSMENT",
+          "PARTIAL_CLASS_COVERAGE",
+          "HIDDEN_DEFECTS_NOT_DETECTABLE",
+          "MANUAL_VERIFICATION_REQUIRED"
+        ],
+        "title": "LimitationCode",
+        "description": "Stable codes so the frontend can localize the message."
+      },
+      "LimitationOut": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/LimitationCode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "English text; localize by `code` if needed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "LimitationOut"
+      },
+      "SummaryOut": {
+        "properties": {
+          "detection_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Detection Count",
+            "description": "All defect detections. Not a bean count."
+          },
+          "primary_detection_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Primary Detection Count"
+          },
+          "secondary_detection_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Secondary Detection Count"
+          },
+          "by_class": {
+            "items": {
+              "$ref": "#/components/schemas/ClassTallyOut"
+            },
+            "type": "array",
+            "title": "By Class"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detection_count",
+          "primary_detection_count",
+          "secondary_detection_count",
+          "by_class"
+        ],
+        "title": "SummaryOut"
+      }
+    }
+  }
+}

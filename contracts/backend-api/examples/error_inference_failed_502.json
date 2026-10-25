@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "INFERENCE_FAILED",
+    "message": "The image analysis service is unavailable. Please try again.",
+    "request_id": "4c8e1a0b9d3f4a6e8b2c1d0e9f8a7b6c",
+    "assessment_id": "asmt_7d2e4f6a8b0c4d1e9f3a5b7c9d1e3f5a"
+  }
+}
