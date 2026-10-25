@@ -121,10 +121,10 @@ export interface PredictionItem {
 }
 
 export interface AssessmentSummaryUI {
-  total_beans_estimated: number
-  normal_beans_count: number
-  defect_regions_count: number
-  defect_percentage: number
+  detection_count: number
+  primary_detection_count: number
+  secondary_detection_count: number
+  by_class: ClassTally[]
 }
 
 export interface UnifiedAssessment {

@@ -16,8 +16,10 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark')
+      document.documentElement.setAttribute('data-theme', 'dark')
     } else {
       document.documentElement.classList.remove('dark')
+      document.documentElement.setAttribute('data-theme', 'light')
     }
     localStorage.setItem('bunavision_theme', theme)
   }, [theme])

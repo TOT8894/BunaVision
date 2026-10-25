@@ -23,15 +23,15 @@ export const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({
   return (
     <div className={`inline-flex items-center gap-1.5 flex-wrap ${className}`}>
       <span
-        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium border ${
+        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold border ${
           isLowConfidence
-            ? 'bg-amber-50 text-amber-900 border-amber-300'
-            : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+            ? 'bg-amber-50 text-amber-950 border-amber-300'
+            : 'bg-emerald-50 text-emerald-950 border-emerald-300'
         }`}
         title={`Model confidence: ${percentage}% (threshold: ${Math.round(threshold * 100)}%)`}
       >
         <span>{percentage}%</span>
-        {showLabel && <span className="text-[11px] opacity-80">Model confidence</span>}
+        {showLabel && <span className="text-xs font-medium opacity-90">Model confidence</span>}
       </span>
 
       {isLowConfidence && (
