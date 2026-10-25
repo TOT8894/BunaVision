@@ -1,62 +1,21 @@
-"""All configuration comes from environment variables. Required ones have no default and stop the
-process at startup with a message naming the variable."""
+"""All configuration comes from environment variables or .env file via python-decouple.
+Required settings have no default and fail fast at startup naming the missing variable."""
 
-import math
-import os
 from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 APP_VERSION = "0.5.0"
 
 
-def _required(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise ImproperlyConfigured(f"{name} is required but not set")
-    return value
-
-
-def _str(name: str, default: str) -> str:
-    return os.environ.get(name, default)
-
-
-def _number(name: str, default: float, cast=int, *, minimum: float = 0):  # noqa: ANN001, ANN202
-    raw = os.environ.get(name)
-    if raw is None:
-        return cast(default)
-    try:
-        value = cast(raw)
-    except ValueError:
-        raise ImproperlyConfigured(f"{name} must be a valid number") from None
-    if not math.isfinite(value) or value < minimum:
-        raise ImproperlyConfigured(f"{name} must be finite and at least {minimum}")
-    return value
-
-
-def _bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    value = raw.strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise ImproperlyConfigured(f"{name} must be a boolean (true/false, yes/no, on/off, or 1/0)")
-
-
-def _csv(raw: str) -> list[str]:
-    return [item.strip() for item in raw.split(",") if item.strip()]
-
-
 # --- Core Django ---------------------------------------------------------------------------
-SECRET_KEY = _required("SECRET_KEY")
-DEBUG = _bool("DEBUG", False)
-ALLOWED_HOSTS = _csv(_required("ALLOWED_HOSTS"))
+SECRET_KEY = config("SECRET_KEY")
+DEBUG = config("DEBUG", default=False, cast=bool)
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv())
 if not ALLOWED_HOSTS:
     raise ImproperlyConfigured("ALLOWED_HOSTS must contain at least one hostname")
 ROOT_URLCONF = "config.urls"
@@ -110,13 +69,14 @@ TEMPLATES = [
 ]
 
 # --- Database and cache --------------------------------------------------------------------
-DATABASES = {"default": dj_database_url.parse(_required("DATABASE_URL"))}
+DATABASES = {"default": dj_database_url.parse(config("DATABASE_URL"))}
 DATABASES["default"].update(CONN_MAX_AGE=60, CONN_HEALTH_CHECKS=True, ATOMIC_REQUESTS=False)
 # Never hold a transaction open while calling vision or Gemini: only the final insert is atomic.
 
 # Throttle counters must be shared by all workers, so not the default per-process memory cache.
-if os.environ.get("REDIS_URL"):
-    CACHES = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": os.environ["REDIS_URL"]}}
+REDIS_URL = config("REDIS_URL", default=None)
+if REDIS_URL:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}}
 else:
     CACHES = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "django_cache"}}
     # run once: python manage.py createcachetable
@@ -127,16 +87,16 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
-ACCESS_TOKEN_TTL_S = _number("ACCESS_TOKEN_TTL_S", 3600)
+ACCESS_TOKEN_TTL_S = config("ACCESS_TOKEN_TTL_S", default=3600, cast=int)
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(seconds=ACCESS_TOKEN_TTL_S),
     "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
-MAX_ASSESSMENTS_PER_USER_PER_HOUR = _number("MAX_ASSESSMENTS_PER_USER_PER_HOUR", 30, minimum=1)
+MAX_ASSESSMENTS_PER_USER_PER_HOUR = config("MAX_ASSESSMENTS_PER_USER_PER_HOUR", default=30, cast=int)
 # Per process x threads: size gunicorn (--workers x --threads) to this; it replaces a semaphore.
-MAX_CONCURRENT_ASSESSMENTS = _number("WEB_CONCURRENCY", 2, minimum=1) * _number("GUNICORN_THREADS", 4, minimum=1)
+MAX_CONCURRENT_ASSESSMENTS = config("WEB_CONCURRENCY", default=2, cast=int) * config("GUNICORN_THREADS", default=4, cast=int)
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"],
@@ -151,7 +111,7 @@ REST_FRAMEWORK = {
     },
     # 0 = trust REMOTE_ADDR only. Behind a proxy set NUM_PROXIES to the number of proxies,
     # otherwise every client shares the proxy's address (or, if unset, X-Forwarded-For is spoofable).
-    "NUM_PROXIES": _number("NUM_PROXIES", 0, minimum=0),
+    "NUM_PROXIES": config("NUM_PROXIES", default=0, cast=int),
 }
 SPECTACULAR_SETTINGS = {
     "TITLE": "BunaVision API",
@@ -161,7 +121,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 # --- CORS ----------------------------------------------------------------------------------
-CORS_ALLOWED_ORIGINS = _csv(_str("CORS_ALLOWED_ORIGINS", ""))
+CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv())
 if "*" in CORS_ALLOWED_ORIGINS:
     raise ImproperlyConfigured("CORS_ALLOWED_ORIGINS must list real origins, not '*'")
 CORS_ALLOW_METHODS = ["GET", "POST", "OPTIONS"]
@@ -170,35 +130,35 @@ CORS_EXPOSE_HEADERS = ["X-Request-ID"]
 CORS_ALLOW_CREDENTIALS = False  # tokens travel in the Authorization header, not cookies
 
 # --- Images and external services ----------------------------------------------------------
-MAX_IMAGE_BYTES = _number("MAX_IMAGE_BYTES", 10 * 1024 * 1024, minimum=1)
-MAX_IMAGE_PIXELS = _number("MAX_IMAGE_PIXELS", 50_000_000, minimum=1)
-MIN_IMAGE_SIDE_PX = _number("MIN_IMAGE_SIDE_PX", 320, minimum=1)  # provisional: confirm against the vision model
-RETAIN_ORIGINAL_IMAGE = _bool("RETAIN_ORIGINAL_IMAGE", True)
-IMAGE_URL_TTL_S = _number("IMAGE_URL_TTL_S", 900, minimum=1)
+MAX_IMAGE_BYTES = config("MAX_IMAGE_BYTES", default=10 * 1024 * 1024, cast=int)
+MAX_IMAGE_PIXELS = config("MAX_IMAGE_PIXELS", default=50_000_000, cast=int)
+MIN_IMAGE_SIDE_PX = config("MIN_IMAGE_SIDE_PX", default=320, cast=int)  # provisional: confirm against the vision model
+RETAIN_ORIGINAL_IMAGE = config("RETAIN_ORIGINAL_IMAGE", default=True, cast=bool)
+IMAGE_URL_TTL_S = config("IMAGE_URL_TTL_S", default=900, cast=int)
 
-VISION_SERVICE_URL = _required("VISION_SERVICE_URL")
-VISION_TIMEOUT_S = _number("VISION_TIMEOUT_S", 30, float, minimum=0.001)
-VISION_CONNECT_TIMEOUT_S = _number("VISION_CONNECT_TIMEOUT_S", 3, float, minimum=0.001)
-VISION_RELOAD_TIMEOUT_S = _number("VISION_RELOAD_TIMEOUT_S", 60, float, minimum=0.001)
+VISION_SERVICE_URL = config("VISION_SERVICE_URL")
+VISION_TIMEOUT_S = config("VISION_TIMEOUT_S", default=30.0, cast=float)
+VISION_CONNECT_TIMEOUT_S = config("VISION_CONNECT_TIMEOUT_S", default=3.0, cast=float)
+VISION_RELOAD_TIMEOUT_S = config("VISION_RELOAD_TIMEOUT_S", default=60.0, cast=float)
 
-GEMINI_API_KEY = _required("GEMINI_API_KEY")
-GEMINI_MODEL = _required("GEMINI_MODEL")  # check Google's deprecations page: models are retired
-GEMINI_TIMEOUT_S = _number("GEMINI_TIMEOUT_S", 30, float, minimum=0.001)
-GEMINI_TEMPERATURE = _number("GEMINI_TEMPERATURE", 0.2, float, minimum=0)
-GEMINI_MAX_OUTPUT_TOKENS = _number("GEMINI_MAX_OUTPUT_TOKENS", 8192, minimum=1)
+GEMINI_API_KEY = config("GEMINI_API_KEY")
+GEMINI_MODEL = config("GEMINI_MODEL")  # check Google's deprecations page: models are retired
+GEMINI_TIMEOUT_S = config("GEMINI_TIMEOUT_S", default=30.0, cast=float)
+GEMINI_TEMPERATURE = config("GEMINI_TEMPERATURE", default=0.2, cast=float)
+GEMINI_MAX_OUTPUT_TOKENS = config("GEMINI_MAX_OUTPUT_TOKENS", default=8192, cast=int)
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"}}
 
-IMAGE_STORE = _required("IMAGE_STORE")
+IMAGE_STORE = config("IMAGE_STORE")
 if IMAGE_STORE == "s3":
     STORAGES["default"] = {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
-            "bucket_name": _required("S3_BUCKET"),
-            "region_name": _required("S3_REGION"),
-            "endpoint_url": os.environ.get("S3_ENDPOINT_URL") or None,  # MinIO and friends
+            "bucket_name": config("S3_BUCKET"),
+            "region_name": config("S3_REGION"),
+            "endpoint_url": config("S3_ENDPOINT_URL", default=None),  # MinIO and friends
             "querystring_auth": True,  # private bucket + short-lived signed URLs
             "querystring_expire": IMAGE_URL_TTL_S,
             "default_acl": None,
@@ -217,7 +177,7 @@ else:
 
 # --- Security and logging ------------------------------------------------------------------
 SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = not DEBUG
-LOG_LEVEL = _str("LOG_LEVEL", "INFO")
+LOG_LEVEL = config("LOG_LEVEL", default="INFO")
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
