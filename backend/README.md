@@ -1,99 +1,74 @@
-# BunaVision backend
+# BunaVision backend (Django REST Framework)
 
-BunaVision's Python API accepts green coffee sample photos, asks the separately deployed Vision service to screen them, obtains a bilingual advisory from Gemini, stores assessment metadata in PostgreSQL and images in the configured image store, and serves owner-scoped history. Results are preliminary model predictions. The API does not issue an official ECX or SCA grade and does not contain computer-vision code.
+The same HTTP API as the FastAPI `backend/`, built with Django and DRF so the framework supplies
+what the FastAPI version hand-wrote: users and password hashing, JWT auth, cursor pagination,
+throttling, the ORM and migrations, storage backends, the admin site and the OpenAPI schema.
+Results are preliminary AI predictions, never official grades.
 
-## Contents
+## Run it
 
-- [Quick start](#quick-start)
-- [Responsibilities and layout](#responsibilities-and-layout)
-- [Implemented behavior and limitations](#implemented-behavior-and-limitations)
-- [Documentation](#documentation)
+```bash
+cp .env.example .env && $EDITOR .env && set -a && source .env && set +a
+docker run -d --name bunavision-db -e POSTGRES_USER=bunavision -e POSTGRES_PASSWORD=change-me \
+  -e POSTGRES_DB=bunavision -p 5432:5432 postgres:16
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py createcachetable                      # shared throttle counters (skip with REDIS_URL)
+python manage.py createsuperuser                       # an administrator (email + password)
+gunicorn config.wsgi:application --worker-class gthread --workers 2 --threads 4 --timeout 120
+```
 
-## Quick start
+Initial migrations are included. Apply them as a separate release step with `python manage.py
+migrate`; do not run migrations on container startup. Docs: `/api/docs/`, schema: `/api/schema/`,
+dashboard: `/django-admin/`.
 
-The repository declares Python `>=3.11`; the container image uses Python 3.12. You also need PostgreSQL, a reachable Vision HTTP service, and Gemini credentials/model configuration for assessment requests. The API checks PostgreSQL connectivity and probes its user/assessment tables at startup, but it does not compare the database's Alembic revision or check Vision/Gemini availability until a request needs them.
+## Tests
 
-1. Create the local settings file and fill in the required values described in [configuration](docs/configuration.md). `.env.example` is a template, not a ready-to-run secret file.
+```bash
+python -m unittest apps.assessments.tests.test_pure       # framework-free, no setup
+SECRET_KEY=t ALLOWED_HOSTS=localhost DATABASE_URL=sqlite:///test.sqlite3 VISION_SERVICE_URL=http://vision.test \
+  GEMINI_API_KEY=x GEMINI_MODEL=x IMAGE_STORE=memory python manage.py test
+```
 
-   ```sh
-   cp .env.example .env
-   ```
+## Layout
 
-   Set `GEMINI_API_KEY`, `GEMINI_MODEL`, `JWT_SECRET` (at least 32 characters), and a `VISION_SERVICE_URL` reachable from this machine. `DATABASE_URL` in the template matches the local database command below. `IMAGE_STORE=memory` is suitable for a local API smoke test, but its image URLs are not fetchable by a browser and its objects disappear on restart.
+```
+config/            settings.py (env-driven, fails fast), urls.py, wsgi.py
+apps/common/       errors (pure), handler (DRF -> error envelope), middleware, pagination
+apps/accounts/     User (email login), register / login / me, admin
+apps/assessments/  Assessment model, services.py (the pipeline), clients/ (vision, Gemini),
+                   taxonomy / analysis / image_validation (pure), views, admin_views, admin
+```
 
-2. Start a local PostgreSQL 17 container. This command uses example-only local credentials; do not reuse them outside a disposable development database.
+## API (`/api/v1`) and who can call it
 
-   ```sh
-   docker run --detach --name bunavision-postgres \
-     --env POSTGRES_USER=bunavision \
-     --env POSTGRES_PASSWORD=change-me \
-     --env POSTGRES_DB=bunavision \
-     --publish 5432:5432 postgres:17-alpine
-   ```
-
-3. Install the backend and development/test dependencies, then apply the migration.
-
-   ```sh
-   python3 -m venv .venv
-   . .venv/bin/activate
-   python -m pip install -r requirements-dev.txt
-   alembic upgrade head
-   ```
-
-4. (Optional) Create an administrator. The password is read interactively; it is not accepted as a command-line argument.
-
-   ```sh
-   python -m scripts.create_admin --email admin@example.com
-   ```
-
-5. Start the API and check its liveness endpoint.
-
-   ```sh
-   uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
-   curl http://127.0.0.1:8000/health
-   ```
-
-   Interactive OpenAPI documentation is served by FastAPI at `/docs`; ReDoc is at `/redoc`, and the schema is at `/openapi.json`.
-
-Run the tests with `python -m pytest`. See [testing](docs/testing.md) for test coverage and the local asyncio runtime finding; do not treat a stalled `asyncio.to_thread` probe as an application test result.
-
-## Responsibilities and layout
-
-The backend owns the versioned public API and workflow orchestration. It owns authentication, upload validation, taxonomy mapping, result normalization, persistence, and presigned image URL creation. Vision detections come only from the HTTP service; Gemini receives derived counts and class coverage, not images or caller-provided text.
-
-| Path | Responsibility |
+| Method and path | Who |
 |---|---|
-| `app/api/` | FastAPI factory, routers, request middleware, dependency injection and HTTP error mapping |
-| `app/schemas/` | Public Pydantic request and response models |
-| `app/services/` | Assessment, auth and admin workflows; adapter ports in `ports.py` |
-| `app/domain/` | Domain entities, errors, defect taxonomy and pure summary/limitation rules |
-| `app/adapters/` | PostgreSQL, Vision HTTP, Gemini, S3/memory storage and password/token implementations |
-| `app/core/` | Typed settings, request-aware logging, IDs and clock |
-| `migrations/` | Async Alembic environment and database migrations |
-| `scripts/` | Operator admin creation and OpenAPI export |
-| `tests/` | Unit tests and mocked adapter/middleware tests |
+| `POST /auth/register`, `POST /auth/login` | anyone (throttled per IP) |
+| `GET /auth/me` | signed in |
+| `POST /assessments` (multipart `image`, optional `Idempotency-Key`), `GET /assessments`, `GET /assessments/{id}` | signed in; hourly quota per user |
+| `GET /admin/assessments` (filters `status`, `error_code`, `owner_id`), `GET /admin/assessments/{id}`, `GET /admin/model-versions`, `GET /admin/overview`, `GET /admin/limits`, `POST /admin/vision/reload-model` | `is_staff` only |
+| `GET /health` (no prefix) | anyone |
 
-See [architecture](docs/architecture.md) for request flow and [database](docs/database.md) for stored records.
+A photo that is not green coffee gets `422 IMAGE_NOT_COFFEE` with
+`error.details = {is_coffee: false, coffee_confidence, threshold}`; it is not stored or counted as a
+failure and Gemini is not called. Failures after a request was accepted (vision, unknown label,
+Gemini, storage, database) are recorded as failed assessments and shown in the admin site.
 
-## Implemented behavior and limitations
+## Differences from the FastAPI backend
 
-- Registration creates regular users. Administrators are created with the operator-run script; there is no HTTP user-management API.
-- An assessment is complete only when valid Vision output, a validated Gemini advisory, image handling, and persistence succeed. Dependency failures return an error and are recorded as failed attempts where possible. Invalid images and Vision's non-coffee rejection are not recorded as assessments.
-- A detection is one reported defect region/bounding box, not one bean. Zero detections is a valid completed result. The taxonomy currently marks three of thirteen listed defect classes as scanned; unknown Vision labels fail rather than being guessed. No grade or bean total is returned.
-- Idempotency is optional and scoped to an owner. Reuse the key with the same bytes to replay a saved result; reusing it with different bytes is rejected. Failed attempts do not retain their key.
-- Hourly usage is counted from persisted completed and failed assessments. The same-owner admission guard and active-assessment cap are process-local, so these controls are not globally atomic across multiple API processes.
-- The in-memory image store is development/test-only. S3-compatible storage is available through the S3 adapter. The repository includes Docker and Compose configuration, but no production cloud infrastructure or Vision service deployment.
-- Integration prerequisite: the backend currently requires coffee-validator response fields that are absent from the checked-in Vision service schema. Live inference compatibility is unverified; see [Vision integration](docs/vision-integration.md#source-level-contract-mismatch) before treating the stack as end-to-end ready.
-- The committed public OpenAPI contract also differs from current router behavior on idempotency status/validation and upload-size documentation. See [API reference](docs/api-reference.md#shared-contract-alignment); this backend-only docs change leaves the shared contract untouched.
+- The quota counts requests (replays and rejected uploads included), not stored attempts.
+- There is no "service busy" 429: requests queue at gunicorn. `workers x threads` is the cap.
+- Passwords use Django's default hasher (PBKDF2), not scrypt.
+- `limit` outside 1-100 is clamped by DRF, not rejected with 422.
+- Login and register are throttled (10/min per IP); the FastAPI version had no throttle.
+- Admin screens come from the Django admin site as well as the API.
+- Unchanged: no refresh tokens, `IMAGE_STORE=memory` is development only.
 
-## Documentation
+## Open items
 
-- [Architecture](docs/architecture.md)
-- [API reference](docs/api-reference.md)
-- [Configuration](docs/configuration.md)
-- [Database](docs/database.md)
-- [Vision integration](docs/vision-integration.md)
-- [Security](docs/security.md)
-- [Testing](docs/testing.md)
-- [Deployment](docs/deployment.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- Pin `requirements.txt` (`pip-compile`) and confirm the DRF, simplejwt and drf-spectacular versions
+  support the Django you install.
+- Put the same upload size limit at the reverse proxy (`client_max_body_size`); set `NUM_PROXIES`.
+- Run `python manage.py check --deploy` and `spectacular --validate` and compare the schema with
+  `contracts/backend-api/openapi.json` before pointing the frontend here.
