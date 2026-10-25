@@ -1,4 +1,4 @@
-import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
+import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import type { ZodType } from 'zod'
 import { env } from '../config/env'
 import type { ErrorCode } from '../types/api'
@@ -229,8 +229,3 @@ export const apiClient = {
     return this.request<T>({ ...config, method: 'DELETE', url })
   },
 }
-<<<<<<< HEAD
-export const unwrap = <T>(promise: Promise<AxiosResponse <{ data: T }> >): Promise<T | undefined> =>
-  promise.then((res) => res.data?.data);
-=======
->>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804

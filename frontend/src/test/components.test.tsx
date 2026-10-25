@@ -29,6 +29,11 @@ describe('Shared Components', () => {
       expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Status: Completed')
     })
 
+    it('renders processing status with text and animated spinner', () => {
+      render(<StatusPill status="processing" />)
+      expect(screen.getByText('Processing')).toBeInTheDocument()
+    })
+
     it('renders failed status with text', () => {
       render(<StatusPill status="failed" />)
       expect(screen.getByText('Failed')).toBeInTheDocument()

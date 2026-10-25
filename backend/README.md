@@ -5,6 +5,7 @@ what the FastAPI version hand-wrote: users and password hashing, JWT auth, curso
 throttling, the ORM and migrations, storage backends, the admin site and the OpenAPI schema.
 Results are preliminary AI predictions, never official grades.
 
+
 ## Run it
 
 ```bash
@@ -24,13 +25,21 @@ dashboard: `/django-admin/`.
 
 ## Tests
 
-```bash
-python -m unittest apps.assessments.tests.test_pure       # framework-free, no setup
-SECRET_KEY=t ALLOWED_HOSTS=localhost DATABASE_URL=sqlite:///test.sqlite3 VISION_SERVICE_URL=http://vision.test \
-  GEMINI_API_KEY=x GEMINI_MODEL=x IMAGE_STORE=memory python manage.py test
-```
-
-## Layout
+| Method and path                         | Who       | Purpose                                                                         |
+| --------------------------------------- | --------- | ------------------------------------------------------------------------------- |
+| `POST /auth/register`                 | anyone    | create an account (role `user`)                                               |
+| `POST /auth/login`                    | anyone    | email + password -> bearer token                                                |
+| `GET /auth/me`                        | signed in | the current user                                                                |
+| `POST /assessments`                   | signed in | upload a photo (multipart field `image`); optional `Idempotency-Key` header |
+| `GET /assessments`                    | signed in | your history, newest first, cursor-paginated (`limit`, `cursor`)            |
+| `GET /assessments/{id}`               | signed in | one of your assessments                                                         |
+| `GET /admin/assessments`              | admin     | every user's attempts; filter `status`, `error_code`, `owner_id`          |
+| `GET /admin/assessments/{id}`         | admin     | one attempt from any user                                                       |
+| `GET /admin/model-versions`           | admin     | vision model + validator versions that produced results                         |
+| `GET /admin/overview?window_hours=24` | admin     | outcome counts: completed, failed by error code                                 |
+| `GET /admin/limits`                   | admin     | the upload, quota and timeout limits being enforced                             |
+| `POST /admin/vision/reload-model`     | admin     | ask the vision service to reload its model                                      |
+| `GET /health`                         | anyone    | liveness                                                                        |
 
 ```
 config/            settings.py (env-driven, fails fast), urls.py, wsgi.py

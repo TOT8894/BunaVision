@@ -1,5 +1,5 @@
 import React from 'react'
-import { CheckCircle2, AlertCircle } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Clock, Loader2 } from 'lucide-react'
 import type { AssessmentStatus } from '../../types/assessment'
 
 export interface StatusPillProps {
@@ -20,6 +20,16 @@ const STATUS_CONFIG: Record<AssessmentStatus, StatusConfig> = {
     icon: CheckCircle2,
     className: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
   },
+  processing: {
+    label: 'Processing',
+    icon: Loader2,
+    className: 'bg-amber-50 text-amber-800 border-amber-200/80 animate-pulse',
+  },
+  pending: {
+    label: 'Pending',
+    icon: Clock,
+    className: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
   failed: {
     label: 'Failed',
     icon: AlertCircle,
@@ -28,7 +38,7 @@ const STATUS_CONFIG: Record<AssessmentStatus, StatusConfig> = {
 }
 
 export const StatusPill: React.FC<StatusPillProps> = ({ status, className = '', size = 'md' }) => {
-  const config = STATUS_CONFIG[status]
+  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending
   const Icon = config.icon
 
   const sizeClasses =
@@ -45,7 +55,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({ status, className = '', 
       aria-label={`Status: ${config.label}`}
     >
       <Icon
-        className={`${iconSizeClasses} shrink-0`}
+        className={`${iconSizeClasses} shrink-0 ${status === 'processing' ? 'animate-spin' : ''}`}
         aria-hidden="true"
       />
       <span>{config.label}</span>
