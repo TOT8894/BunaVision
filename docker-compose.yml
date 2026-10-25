@@ -16,7 +16,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # TODO(backend owner): read all config from env (no hardcoded secrets).
+      # TODO(backend owner): read all config from env (no hardcoded secrets).z
       - VISION_SERVICE_URL=http://vision:9000
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-}
