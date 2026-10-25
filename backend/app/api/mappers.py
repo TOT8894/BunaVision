@@ -53,7 +53,11 @@ def _defect(defect: DefectClass) -> DefectClassOut:
 
 def _result(view: AssessmentView, result: AssessmentResult) -> AssessmentResultOut:
     summary = result.summary
+<<<<<<< HEAD
+    # advisory = result.advisory
+=======
     advisory = result.advisory
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
     return AssessmentResultOut(
         model_version=result.model_version,
         image_check=ImageCheckOut(
@@ -89,6 +93,15 @@ def _result(view: AssessmentView, result: AssessmentResult) -> AssessmentResultO
             LimitationOut(code=item.code, message=item.message)
             for item in limitations_for(result.coverage)
         ],
+<<<<<<< HEAD
+        # advisory=AdvisoryOut(
+        #     generator_model=advisory.generator_model,
+        #     summary=BilingualTextOut(en=advisory.summary.en, am=advisory.summary.am),
+        #     recommendations=[
+        #         BilingualTextOut(en=item.en, am=item.am) for item in advisory.recommendations
+        #     ],
+        # ),
+=======
         advisory=AdvisoryOut(
             generator_model=advisory.generator_model,
             summary=BilingualTextOut(en=advisory.summary.en, am=advisory.summary.am),
@@ -96,6 +109,7 @@ def _result(view: AssessmentView, result: AssessmentResult) -> AssessmentResultO
                 BilingualTextOut(en=item.en, am=item.am) for item in advisory.recommendations
             ],
         ),
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
         images=ImagesOut(
             original_url=view.original_image_url,
             annotated_url=view.annotated_image_url,

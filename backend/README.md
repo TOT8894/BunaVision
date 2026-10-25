@@ -28,6 +28,13 @@ scripts/      create_admin.py, export_openapi.py
 
 Dependencies point inward: `api -> services -> domain`, and `adapters -> services.ports`.
 
+| Method | Path | |
+|---|---|---|
+| POST | `/api/v1/assessments` | multipart field `file`; optional `Idempotency-Key` header. 201 new, 200 replay |
+| GET | `/api/v1/assessments` | `limit` (1-100), opaque `cursor`; newest first |
+| GET | `/api/v1/assessments/{id}` | completed or failed, with fresh image URLs |
+| GET | `/health` | liveness only |
+=======
 ## Run it
 
 ```bash

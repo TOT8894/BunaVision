@@ -67,6 +67,28 @@ def build_auth_service(settings: Settings, users: UserRepository, clock: Clock) 
     )
 
 
+        advisor=GeminiAdvisoryGenerator(
+            client=gemini_client,
+            model=settings.gemini_model,
+            temperature=settings.gemini_temperature,
+            timeout_s=settings.gemini_timeout_s,
+            max_output_tokens=settings.gemini_max_output_tokens,
+        ),
+        images=_build_image_store(settings),
+        repository=_build_repository(settings),
+        taxonomy=ECX_TAXONOMY,
+        limits=ImageLimits(
+            max_bytes=settings.max_image_bytes,
+            max_pixels=settings.max_image_pixels,
+            min_side_px=settings.min_image_side_px,
+        ),
+        clock=SystemClock(),
+        new_id=new_assessment_id,
+        image_url_ttl_s=settings.image_url_ttl_s,
+        retain_original_image=settings.retain_original_image,
+    )
+    return Container(service=service, _closers=closers)
+=======
 @asynccontextmanager
 async def build_services(settings: Settings) -> AsyncIterator[Services]:
     async with AsyncExitStack() as stack:

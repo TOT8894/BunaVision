@@ -59,6 +59,25 @@ class GeminiAdvisoryGenerator:
         )
 
     async def generate(self, facts: AdvisoryFacts) -> Advisory:
+<<<<<<< HEAD
+        # try:
+        #     # The outer timeout is the authority; the SDK's own timeout is a second layer.
+        #     async with asyncio.timeout(self._timeout_s):
+        #         response = await self._client.aio.models.generate_content(
+        #             model=self._model, contents=render_facts(facts), config=self._config
+        #         )
+        # except TimeoutError as exc:
+        #     raise AdvisoryUnavailableError(f"Gemini timed out after {self._timeout_s}s") from exc
+        # except genai_errors.APIError as exc:
+        #     raise AdvisoryUnavailableError(f"Gemini API error {exc.code}: {exc}") from exc
+        # except httpx.HTTPError as exc:
+        #     raise AdvisoryUnavailableError(f"Gemini transport error: {exc!r}") from exc
+        payload = {
+                "summary": {"en": "One primary defect was detected.", "am": "አንድ ዋና ጉድለት ተገኝቷል።"},
+                "recommendations": [{"en": "Verify manually.", "am": "በእጅ ያረጋግጡ።"}],
+            }
+        return payload
+=======
         try:
             # The outer timeout is the authority; the SDK's own timeout is a second layer.
             async with asyncio.timeout(self._timeout_s):
@@ -73,6 +92,7 @@ class GeminiAdvisoryGenerator:
             raise AdvisoryUnavailableError(f"Gemini transport error: {exc!r}") from exc
 
         return self._to_advisory(response.text)
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
 
     def _to_advisory(self, text: str | None) -> Advisory:
         if not text:

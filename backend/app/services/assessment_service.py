@@ -86,7 +86,11 @@ class AssessmentService:
         self,
         *,
         vision: VisionDetector,
+<<<<<<< HEAD
+        # advisor: AdvisoryGenerator,
+=======
         advisor: AdvisoryGenerator,
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
         images: ImageStore,
         repository: AssessmentRepository,
         taxonomy: DefectTaxonomy,
@@ -99,7 +103,11 @@ class AssessmentService:
         max_concurrent_assessments: int,
     ) -> None:
         self._vision = vision
+<<<<<<< HEAD
+        # self._advisor = advisor
+=======
         self._advisor = advisor
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
         self._images = images
         self._repository = repository
         self._taxonomy = taxonomy
@@ -220,9 +228,15 @@ class AssessmentService:
         summary = summarize(detections)
         coverage = build_coverage(self._taxonomy)
 
+<<<<<<< HEAD
+        # advisory = await self._advisor.generate(
+        #     AdvisoryFacts(model_version=output.model_version, summary=summary, coverage=coverage)
+        # )
+=======
         advisory = await self._advisor.generate(
             AdvisoryFacts(model_version=output.model_version, summary=summary, coverage=coverage)
         )
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
 
         keys = await self._store_images(assessment_id, image, output.annotated_image)
         assessment = Assessment.completed(
@@ -238,7 +252,11 @@ class AssessmentService:
                 detections=detections,
                 summary=summary,
                 coverage=coverage,
+<<<<<<< HEAD
+                # advisory=advisory,
+=======
                 advisory=advisory,
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
                 original_image_key=keys.original,
                 annotated_image_key=keys.annotated,
             ),
