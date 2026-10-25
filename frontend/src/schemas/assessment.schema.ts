@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { errorCodeSchema, createPaginatedListResponseSchema } from './api.schema'
+import { errorCodeSchema } from './api.schema'
 
 export const assessmentStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
 
@@ -26,6 +26,10 @@ export const assessmentSchema = z.object({
   annotated_image_url: z.string().nullable(),
   limitations: z.array(z.string()),
   error_code: errorCodeSchema.nullable().optional(),
+  detection_count: z.number().int().nonnegative().optional(),
 })
 
-export const assessmentListResponseSchema = createPaginatedListResponseSchema(assessmentSchema)
+export const assessmentListResponseSchema = z.object({
+  items: z.array(assessmentSchema),
+  next_cursor: z.string().nullable(),
+})

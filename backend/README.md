@@ -28,13 +28,15 @@ scripts/      create_admin.py, export_openapi.py
 
 Dependencies point inward: `api -> services -> domain`, and `adapters -> services.ports`.
 
-| Method | Path | |
-|---|---|---|
-| POST | `/api/v1/assessments` | multipart field `file`; optional `Idempotency-Key` header. 201 new, 200 replay |
-| GET | `/api/v1/assessments` | `limit` (1-100), opaque `cursor`; newest first |
-| GET | `/api/v1/assessments/{id}` | completed or failed, with fresh image URLs |
-| GET | `/health` | liveness only |
+| Method | Path                         |                                                                                    |
+| ------ | ---------------------------- | ---------------------------------------------------------------------------------- |
+| POST   | `/api/v1/assessments`      | multipart field `file`; optional `Idempotency-Key` header. 201 new, 200 replay |
+| GET    | `/api/v1/assessments`      | `limit` (1-100), opaque `cursor`; newest first                                 |
+| GET    | `/api/v1/assessments/{id}` | completed or failed, with fresh image URLs                                         |
+| GET    | `/health`                  | liveness only                                                                      |
+
 =======
+
 ## Run it
 
 ```bash
@@ -52,21 +54,21 @@ the database is unreachable, or migrations have not been applied. Docs: `/docs`.
 
 ## Endpoints (`/api/v1`)
 
-| Method and path | Who | Purpose |
-|---|---|---|
-| `POST /auth/register` | anyone | create an account (role `user`) |
-| `POST /auth/login` | anyone | email + password -> bearer token |
-| `GET /auth/me` | signed in | the current user |
-| `POST /assessments` | signed in | upload a photo (multipart field `image`); optional `Idempotency-Key` header |
-| `GET /assessments` | signed in | your history, newest first, cursor-paginated (`limit`, `cursor`) |
-| `GET /assessments/{id}` | signed in | one of your assessments |
-| `GET /admin/assessments` | admin | every user's attempts; filter `status`, `error_code`, `owner_id` |
-| `GET /admin/assessments/{id}` | admin | one attempt from any user |
-| `GET /admin/model-versions` | admin | vision model + validator versions that produced results |
-| `GET /admin/overview?window_hours=24` | admin | outcome counts: completed, failed by error code |
-| `GET /admin/limits` | admin | the upload, quota and timeout limits being enforced |
-| `POST /admin/vision/reload-model` | admin | ask the vision service to reload its model |
-| `GET /health` | anyone | liveness |
+| Method and path                         | Who       | Purpose                                                                         |
+| --------------------------------------- | --------- | ------------------------------------------------------------------------------- |
+| `POST /auth/register`                 | anyone    | create an account (role `user`)                                               |
+| `POST /auth/login`                    | anyone    | email + password -> bearer token                                                |
+| `GET /auth/me`                        | signed in | the current user                                                                |
+| `POST /assessments`                   | signed in | upload a photo (multipart field `image`); optional `Idempotency-Key` header |
+| `GET /assessments`                    | signed in | your history, newest first, cursor-paginated (`limit`, `cursor`)            |
+| `GET /assessments/{id}`               | signed in | one of your assessments                                                         |
+| `GET /admin/assessments`              | admin     | every user's attempts; filter `status`, `error_code`, `owner_id`          |
+| `GET /admin/assessments/{id}`         | admin     | one attempt from any user                                                       |
+| `GET /admin/model-versions`           | admin     | vision model + validator versions that produced results                         |
+| `GET /admin/overview?window_hours=24` | admin     | outcome counts: completed, failed by error code                                 |
+| `GET /admin/limits`                   | admin     | the upload, quota and timeout limits being enforced                             |
+| `POST /admin/vision/reload-model`     | admin     | ask the vision service to reload its model                                      |
+| `GET /health`                         | anyone    | liveness                                                                        |
 
 Admin duties map to the spec's section 5.3 stories: failures recorded (`/admin/assessments`,
 `/admin/overview`), model versions recorded (`/admin/model-versions`), limits (`/admin/limits`,

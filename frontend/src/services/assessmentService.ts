@@ -8,7 +8,7 @@ import type {
   PredictionItem,
 } from '../types/assessment'
 
-const API_BASE = env.apiBaseUrl // e.g. 'http://localhost:8000/api/v1'
+const API_BASE = env.apiBaseUrl
 
 /**
  * Checks if the backend server is reachable via /health
@@ -41,7 +41,6 @@ export function mapBackendToUnified(
   const summary = result.summary
   const totalDefects = summary.detection_count
 
-  // The model scans defect regions. For sample context, estimate bean spread
   const estimatedTotalBeans = Math.max(totalDefects * 6, 120)
   const normalBeans = Math.max(estimatedTotalBeans - totalDefects, 0)
   const defectPct =
@@ -67,12 +66,9 @@ export function mapBackendToUnified(
   ]
 
   const originalUrl =
-    result.images.original_url ||
-    extra?.fallbackImageUrl ||
-    '/raw_beans_detected.png'
+    result.images.original_url || extra?.fallbackImageUrl || '/raw_beans_detected.png'
 
-  const annotatedUrl =
-    result.images.annotated_url || originalUrl
+  const annotatedUrl = result.images.annotated_url || originalUrl
 
   return {
     assessment_id: backend.assessment_id,
@@ -103,7 +99,7 @@ export function mapBackendToUnified(
 }
 
 /**
- * Attempts to submit an image file to the live backend POST /assessments
+ * Submits an image file to the live backend POST /api/v1/assessments
  */
 export async function uploadAssessmentToBackend(
   file: File,
@@ -115,25 +111,23 @@ export async function uploadAssessmentToBackend(
     varietal?: string
     notes?: string
   },
+  token?: string,
 ): Promise<UnifiedAssessment> {
   const formData = new FormData()
   formData.append('file', file)
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'multipart/form-data',
-  }
-
+  const headers: Record<string, string> = {}
   if (options?.idempotencyKey) {
     headers['Idempotency-Key'] = options.idempotencyKey
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
   }
 
   const response = await axios.post<BackendCompletedAssessment>(
     `${API_BASE}/assessments`,
     formData,
-    {
-      headers,
-      timeout: 35000,
-    },
+    { headers, timeout: 35000 },
   )
 
   const previewFallback = URL.createObjectURL(file)
@@ -148,35 +142,40 @@ export async function uploadAssessmentToBackend(
 }
 
 /**
- * Fetches assessment history from live backend GET /assessments
+ * Fetches assessment history from the backend GET /api/v1/assessments
  */
 export async function fetchAssessmentsFromBackend(
   limit = 20,
   cursor?: string,
+  token?: string,
 ): Promise<BackendAssessmentListResponse> {
   const params: Record<string, string | number> = { limit }
-  if (cursor) {
-    params.cursor = cursor
-  }
-  const response = await axios.get<BackendAssessmentListResponse>(
-    `${API_BASE}/assessments`,
-    {
-      params,
-      timeout: 10000,
-    },
-  )
+  if (cursor) params.cursor = cursor
+
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const response = await axios.get<BackendAssessmentListResponse>(`${API_BASE}/assessments`, {
+    params,
+    headers,
+    timeout: 10000,
+  })
   return response.data
 }
 
 /**
- * Fetches single assessment from live backend GET /assessments/:id
+ * Fetches a single assessment from the backend GET /api/v1/assessments/:id
  */
 export async function fetchAssessmentByIdFromBackend(
   id: string,
+  token?: string,
 ): Promise<BackendAssessment> {
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
   const response = await axios.get<BackendAssessment>(
     `${API_BASE}/assessments/${encodeURIComponent(id)}`,
-    { timeout: 10000 },
+    { headers, timeout: 10000 },
   )
   return response.data
 }

@@ -229,5 +229,3 @@ export const apiClient = {
     return this.request<T>({ ...config, method: 'DELETE', url })
   },
 }
-export const unwrap = <T>(promise: Promise<AxiosResponse<{ data: T }>>): Promise<T | undefined> =>
-  promise.then((res) => res.data?.data)
