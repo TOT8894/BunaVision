@@ -33,11 +33,7 @@ export function AppShell({ children }: PropsWithChildren) {
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-coffee-700 text-white shadow-xs">
               <img src={bunavision} alt="buna vision logo" className="h-10 w-10" aria-hidden="true" />
             </span>
-            <span className="tracking-tight">BunaVision</span>
           </Link>
-
-          <nav aria-label="Main navigation" className="flex items-center gap-2">
-            <NavLink className={navLinkClass} to="/assess">
               <Layers className="h-4 w-4" aria-hidden="true" />
               <span>Assess Sample</span>
             </NavLink>

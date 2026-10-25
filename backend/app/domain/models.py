@@ -87,7 +87,11 @@ class AssessmentResult:
     detections: tuple[Detection, ...]
     summary: DetectionSummary
     coverage: Coverage
+<<<<<<< HEAD
     # advisory: Advisory
+=======
+    advisory: Advisory
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
     original_image_key: str | None
     annotated_image_key: str | None
 

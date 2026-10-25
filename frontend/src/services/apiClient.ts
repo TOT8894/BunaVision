@@ -229,5 +229,8 @@ export const apiClient = {
     return this.request<T>({ ...config, method: 'DELETE', url })
   },
 }
+<<<<<<< HEAD
 export const unwrap = <T>(promise: Promise<AxiosResponse <{ data: T }> >): Promise<T | undefined> =>
   promise.then((res) => res.data?.data);
+=======
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804

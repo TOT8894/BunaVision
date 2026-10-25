@@ -23,12 +23,21 @@ app/main.py       app factory
 
 ## API
 
+<<<<<<< HEAD
 | Method | Path                         |                                                                                    |
 | ------ | ---------------------------- | ---------------------------------------------------------------------------------- |
 | POST   | `/api/v1/assessments`      | multipart field `file`; optional `Idempotency-Key` header. 201 new, 200 replay |
 | GET    | `/api/v1/assessments`      | `limit` (1-100), opaque `cursor`; newest first                                 |
 | GET    | `/api/v1/assessments/{id}` | completed or failed, with fresh image URLs                                         |
 | GET    | `/health`                  | liveness only                                                                      |
+=======
+| Method | Path | |
+|---|---|---|
+| POST | `/api/v1/assessments` | multipart field `file`; optional `Idempotency-Key` header. 201 new, 200 replay |
+| GET | `/api/v1/assessments` | `limit` (1-100), opaque `cursor`; newest first |
+| GET | `/api/v1/assessments/{id}` | completed or failed, with fresh image URLs |
+| GET | `/health` | liveness only |
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
 
 All errors use `{"error": {code, message, request_id, assessment_id}}`. `/detect` and
 `/reload-model` belong to the vision service and no longer exist here.

@@ -69,6 +69,7 @@ def build_container(settings: Settings) -> Container:
 
     service = AssessmentService(
         vision=HttpVisionDetector(http=http),
+<<<<<<< HEAD
         # advisor=GeminiAdvisoryGenerator(
         #     client=gemini_client,
         #     model=settings.gemini_model,
@@ -76,6 +77,15 @@ def build_container(settings: Settings) -> Container:
         #     timeout_s=settings.gemini_timeout_s,
         #     max_output_tokens=settings.gemini_max_output_tokens,
         # ),
+=======
+        advisor=GeminiAdvisoryGenerator(
+            client=gemini_client,
+            model=settings.gemini_model,
+            temperature=settings.gemini_temperature,
+            timeout_s=settings.gemini_timeout_s,
+            max_output_tokens=settings.gemini_max_output_tokens,
+        ),
+>>>>>>> 9a4331aae5c644cfca76c5963eb8630d56a97804
         images=_build_image_store(settings),
         repository=_build_repository(settings),
         taxonomy=ECX_TAXONOMY,
