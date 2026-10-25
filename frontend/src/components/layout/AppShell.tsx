@@ -1,8 +1,9 @@
 import type { PropsWithChildren } from 'react'
 import { Link, NavLink } from 'react-router'
-import { Sparkles, Layers, History, ShieldAlert } from 'lucide-react'
+import { Layers, History, ShieldAlert } from 'lucide-react'
 import { env } from '../../config/env'
 import { Disclaimer } from '../common/Disclaimer'
+import bunavision from '../../assets/bunavision-favicon.ico'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
@@ -30,13 +31,9 @@ export function AppShell({ children }: PropsWithChildren) {
             aria-label="BunaVision home"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-coffee-700 text-white shadow-xs">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              <img src={bunavision} alt="buna vision logo" className="h-10 w-10" aria-hidden="true" />
             </span>
-            <span className="tracking-tight">BunaVision</span>
           </Link>
-
-          <nav aria-label="Main navigation" className="flex items-center gap-2">
-            <NavLink className={navLinkClass} to="/assess">
               <Layers className="h-4 w-4" aria-hidden="true" />
               <span>Assess Sample</span>
             </NavLink>
