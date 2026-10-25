@@ -1,13 +1,19 @@
-# Runtime dependencies. Ranges are deliberately bounded; I could not resolve exact versions
-# (no network in the authoring sandbox). Generate the lock before the first deploy:
-#   pip install -r requirements.txt && pip freeze > requirements.lock
-# and build the Docker image from requirements.lock.
-fastapi>=0.115,<1
-uvicorn[standard]>=0.30,<1
-python-multipart>=0.0.9
-pydantic>=2.7,<3
-pydantic-settings>=2.7,<3
+# Version ranges, not exact pins: written without network access, so it could not be resolved.
+# Lock before building images:  pip-compile requirements.txt   (or: uv pip compile)
+# Check DRF / simplejwt / drf-spectacular release notes for support of the Django you install.
+Django>=5.2,<6.2
+djangorestframework>=3.16,<4
+djangorestframework-simplejwt>=5.5,<6
+drf-spectacular>=0.28,<1
+django-cors-headers>=4.6,<5
+django-storages[s3]>=1.14,<2
+boto3>=1.35,<2
+psycopg[binary]>=3.2,<4
+dj-database-url>=2.2,<4
+redis>=5,<7
 httpx>=0.27,<1
-pillow>=10.3
-google-genai>=1.0
-boto3>=1.34
+google-genai==2.32.0
+pydantic>=2.8,<3
+Pillow>=10.4
+gunicorn>=22,<24
+whitenoise>=6.7,<7

@@ -1,70 +1,74 @@
-# BunaVision backend
+# BunaVision backend (Django REST Framework)
 
-FastAPI orchestrator. It validates uploads, calls the **vision service over HTTP**, asks Gemini
-for a bilingual advisory, stores images and records, and serves them. It contains no detection
-logic and imports nothing from `vision/` or `frontend/`.
+The same HTTP API as the FastAPI `backend/`, built with Django and DRF so the framework supplies
+what the FastAPI version hand-wrote: users and password hashing, JWT auth, cursor pagination,
+throttling, the ORM and migrations, storage backends, the admin site and the OpenAPI schema.
+Results are preliminary AI predictions, never official grades.
 
-Results are **preliminary AI predictions**. There is no grade, export eligibility, cupping
-analysis or bean total: the vision model only localizes 3 of the 13 ECX defect classes, so none
-of those can be computed truthfully.
-
-## Layers (dependencies point downward only)
-
-```
-app/api/        routes, middleware, error handlers, mappers   HTTP only, no business logic
-app/schemas/    public Pydantic models (the frontend contract)
-app/services/   assessment workflow, image validation, ports  no HTTP, boto3, httpx or SDKs
-app/domain/     taxonomy, analysis rules, entities, errors     pure Python, no I/O
-app/adapters/   vision_client, gemini, storage (S3), db        implement the ports
-app/core/       settings, logging, clock, ids, security
-app/container.py  composition root (the only place that knows concrete classes)
-app/main.py       app factory
-```
-
-## API
-
-| Method | Path | |
-|---|---|---|
-| POST | `/api/v1/assessments` | multipart field `file`; optional `Idempotency-Key` header. 201 new, 200 replay |
-| GET | `/api/v1/assessments` | `limit` (1-100), opaque `cursor`; newest first |
-| GET | `/api/v1/assessments/{id}` | completed or failed, with fresh image URLs |
-| GET | `/health` | liveness only |
-
-All errors use `{"error": {code, message, request_id, assessment_id}}`. `/detect` and
-`/reload-model` belong to the vision service and no longer exist here.
-
-## Run
+## Run it
 
 ```bash
-cd backend
-python -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt
-cp .env.example .env        # fill in the required values
-uvicorn app.main:app_factory --factory --reload --port 8000
+cp .env.example .env && $EDITOR .env && set -a && source .env && set +a
+docker run -d --name bunavision-db -e POSTGRES_USER=bunavision -e POSTGRES_PASSWORD=change-me \
+  -e POSTGRES_DB=bunavision -p 5432:5432 postgres:16
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py createcachetable                      # shared throttle counters (skip with REDIS_URL)
+python manage.py createsuperuser                       # an administrator (email + password)
+gunicorn config.wsgi:application --worker-class gthread --workers 2 --threads 4 --timeout 120
 ```
 
-Tests: `pytest` (or `python -m unittest discover -s tests/unit -t .` with only Pillow installed).
-Checks: `ruff check . && mypy`. Contract: `python -m scripts.export_openapi`.
+Initial migrations are included. Apply them as a separate release step with `python manage.py
+migrate`; do not run migrations on container startup. Docs: `/api/docs/`, schema: `/api/schema/`,
+dashboard: `/django-admin/`.
 
-## Behaviour worth knowing
+## Tests
 
-* Bad input is rejected before any work and not recorded. A dependency failure after that is
-  recorded as a `failed` assessment (status + error code, never an empty success).
-* Zero detections is a valid `completed` result. Vision errors, unknown defect classes and
-  category disagreements between the services fail the assessment.
-* Images are written only after every step that can fail has succeeded, and deleted again if
-  the final save fails.
-* The same `Idempotency-Key` with the same image replays the original result; a different image
-  is a 409.
+```bash
+python -m unittest apps.assessments.tests.test_pure       # framework-free, no setup
+SECRET_KEY=t ALLOWED_HOSTS=localhost DATABASE_URL=sqlite:///test.sqlite3 VISION_SERVICE_URL=http://vision.test \
+  GEMINI_API_KEY=x GEMINI_MODEL=x IMAGE_STORE=memory python manage.py test
+```
 
-## Open decisions
+## Layout
 
-* **Database.** Only an in-memory repository exists (`ASSESSMENT_STORE=memory`). Implement
-  `AssessmentRepository` for DynamoDB or PostgreSQL in `app/adapters/db/` and add the enum
-  value and one `case` in `container.py`.
-* **Authentication.** `get_principal` returns one shared demo user. Everything else is already
-  owner-scoped.
-* **Image URLs.** `IMAGE_STORE=memory` URLs are not fetchable; use S3 (or MinIO) to see images.
-* **Upload field name.** `file`, matching the vision service. The older spec says `image`.
-* **Model/ECX facts to confirm.** Minimum image side (320 px) and the 13-class inventory in
-  `app/domain/taxonomy.py`.
+```
+config/            settings.py (env-driven, fails fast), urls.py, wsgi.py
+apps/common/       errors (pure), handler (DRF -> error envelope), middleware, pagination
+apps/accounts/     User (email login), register / login / me, admin
+apps/assessments/  Assessment model, services.py (the pipeline), clients/ (vision, Gemini),
+                   taxonomy / analysis / image_validation (pure), views, admin_views, admin
+```
+
+## API (`/api/v1`) and who can call it
+
+| Method and path | Who |
+|---|---|
+| `POST /auth/register`, `POST /auth/login` | anyone (throttled per IP) |
+| `GET /auth/me` | signed in |
+| `POST /assessments` (multipart `image`, optional `Idempotency-Key`), `GET /assessments`, `GET /assessments/{id}` | signed in; hourly quota per user |
+| `GET /admin/assessments` (filters `status`, `error_code`, `owner_id`), `GET /admin/assessments/{id}`, `GET /admin/model-versions`, `GET /admin/overview`, `GET /admin/limits`, `POST /admin/vision/reload-model` | `is_staff` only |
+| `GET /health` (no prefix) | anyone |
+
+A photo that is not green coffee gets `422 IMAGE_NOT_COFFEE` with
+`error.details = {is_coffee: false, coffee_confidence, threshold}`; it is not stored or counted as a
+failure and Gemini is not called. Failures after a request was accepted (vision, unknown label,
+Gemini, storage, database) are recorded as failed assessments and shown in the admin site.
+
+## Differences from the FastAPI backend
+
+- The quota counts requests (replays and rejected uploads included), not stored attempts.
+- There is no "service busy" 429: requests queue at gunicorn. `workers x threads` is the cap.
+- Passwords use Django's default hasher (PBKDF2), not scrypt.
+- `limit` outside 1-100 is clamped by DRF, not rejected with 422.
+- Login and register are throttled (10/min per IP); the FastAPI version had no throttle.
+- Admin screens come from the Django admin site as well as the API.
+- Unchanged: no refresh tokens, `IMAGE_STORE=memory` is development only.
+
+## Open items
+
+- Pin `requirements.txt` (`pip-compile`) and confirm the DRF, simplejwt and drf-spectacular versions
+  support the Django you install.
+- Put the same upload size limit at the reverse proxy (`client_max_body_size`); set `NUM_PROXIES`.
+- Run `python manage.py check --deploy` and `spectacular --validate` and compare the schema with
+  `contracts/backend-api/openapi.json` before pointing the frontend here.

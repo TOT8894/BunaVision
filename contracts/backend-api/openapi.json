@@ -9,7 +9,7 @@
     "/health": {
       "get": {
         "tags": [
-          "Health"
+          "health"
         ],
         "summary": "Liveness probe",
         "operationId": "health_health_get",
@@ -27,14 +27,157 @@
         }
       }
     },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create an account (always a regular user; admins are created by an operator)",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Exchange email and password for an access token",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "The signed-in user",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/assessments": {
       "post": {
         "tags": [
-          "Assessments"
+          "assessments"
         ],
-        "summary": "Create an assessment from a green coffee sample photo",
-        "description": "Runs the full workflow synchronously. Returns 201 for a new assessment. Send an `Idempotency-Key` header to make retries safe: the same key with the same image returns the original result with 200; the same key with a different image is a 409. A failure after the request was accepted is recorded as a failed assessment and the error response carries its `assessment_id`.",
+        "summary": "Analyse a green coffee sample photo",
+        "description": "Runs the full workflow synchronously. 201 for a new assessment. A photo that does not show green coffee is rejected with `IMAGE_NOT_COFFEE` (422) and `error.details.is_coffee == false`; nothing is stored. Send an `Idempotency-Key` header to make retries safe: the same key with the same image returns the original result with 200; the same key with a different image is a 409. A dependency failure after the request was accepted is recorded as a failed assessment and the error response carries its `assessment_id`. Over the hourly quota or while the service is saturated: 429.",
         "operationId": "create_assessment_api_v1_assessments_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -80,113 +223,128 @@
             }
           },
           "200": {
+            "description": "An earlier assessment with the same Idempotency-Key and image.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CompletedAssessmentOut"
                 }
               }
-            },
-            "description": "OK"
+            }
           },
           "400": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
+            }
           },
-          "404": {
+          "401": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "409": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Conflict"
+            }
           },
           "413": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Content Too Large"
+            }
           },
           "415": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unsupported Media Type"
+            }
           },
           "422": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
+          },
+          "429": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "502": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Gateway"
+            }
           },
           "503": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Service Unavailable"
+            }
           },
           "504": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Gateway Timeout"
+            }
           }
         }
       },
       "get": {
         "tags": [
-          "Assessments"
+          "assessments"
         ],
-        "summary": "List your assessments, newest first",
+        "summary": "Your assessment history, newest first",
         "operationId": "list_assessments_api_v1_assessments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "limit",
@@ -231,95 +389,25 @@
               }
             }
           },
-          "400": {
+          "401": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Content Too Large"
-          },
-          "415": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unsupported Media Type"
+            }
           },
           "422": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Gateway"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          },
-          "504": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Gateway Timeout"
+            }
           }
         }
       }
@@ -327,10 +415,15 @@
     "/api/v1/assessments/{assessment_id}": {
       "get": {
         "tags": [
-          "Assessments"
+          "assessments"
         ],
-        "summary": "Get one assessment (completed or failed), with fresh image URLs",
+        "summary": "One of your assessments, with fresh image URLs",
         "operationId": "get_assessment_api_v1_assessments__assessment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "assessment_id",
@@ -338,6 +431,8 @@
             "required": true,
             "schema": {
               "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
               "title": "Assessment Id"
             }
           }
@@ -368,102 +463,589 @@
               }
             }
           },
-          "400": {
+          "401": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
+            }
           },
           "404": {
+            "description": "Error. See the `error.code` field.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Content Too Large"
-          },
-          "415": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unsupported Media Type"
+            }
           },
           "422": {
+            "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
-            },
-            "description": "Unprocessable Content"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Gateway"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          },
-          "504": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Gateway Timeout"
+            }
           }
         }
+      }
+    },
+    "/api/v1/admin/assessments": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Every user's assessments, newest first (use status=failed to troubleshoot)",
+        "operationId": "list_assessments_api_v1_admin_assessments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AssessmentStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "error_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ErrorCode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Code"
+            }
+          },
+          {
+            "name": "owner_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Owner Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAssessmentListOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/assessments/{assessment_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "One recorded attempt, from any user",
+        "operationId": "get_assessment_api_v1_admin_assessments__assessment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAssessmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/model-versions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Which vision model and validator versions produced results, and when",
+        "operationId": "model_versions_api_v1_admin_model_versions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelVersionsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/overview": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Outcome counts (completed, and failed by error code) over a time window",
+        "operationId": "overview_api_v1_admin_overview_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "window_hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 720,
+              "minimum": 1,
+              "default": 24,
+              "title": "Window Hours"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/limits": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The upload, quota and timeout limits the service enforces",
+        "operationId": "limits_api_v1_admin_limits_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LimitsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/vision/reload-model": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ask the vision service to reload its model",
+        "operationId": "reload_vision_model_api_v1_admin_vision_reload_model_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelReloadOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error. See the `error.code` field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     }
   },
   "components": {
     "schemas": {
+      "AdminAssessmentListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminAssessmentOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "AdminAssessmentListOut"
+      },
+      "AdminAssessmentOut": {
+        "properties": {
+          "assessment_id": {
+            "type": "string",
+            "title": "Assessment Id"
+          },
+          "owner_id": {
+            "type": "string",
+            "title": "Owner Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "processing_time_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Processing Time Ms"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when status is `failed`."
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version",
+            "description": "Vision model version; set when completed."
+          },
+          "validator_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validator Version",
+            "description": "Coffee validator version; set when completed."
+          },
+          "detection_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detection Count",
+            "description": "Defect detections; set when completed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "owner_id",
+          "status",
+          "created_at",
+          "processing_time_ms",
+          "error_code",
+          "model_version",
+          "validator_version",
+          "detection_count"
+        ],
+        "title": "AdminAssessmentOut",
+        "description": "One recorded attempt, from any user. Enough to troubleshoot a failure."
+      },
       "AdvisoryOut": {
         "properties": {
           "generator_model": {
@@ -540,6 +1122,9 @@
             "title": "Model Version",
             "description": "Version of the vision model that found the defects."
           },
+          "image_check": {
+            "$ref": "#/components/schemas/ImageCheckOut"
+          },
           "summary": {
             "$ref": "#/components/schemas/SummaryOut"
           },
@@ -570,6 +1155,7 @@
         "type": "object",
         "required": [
           "model_version",
+          "image_check",
           "summary",
           "detections",
           "coverage",
@@ -578,6 +1164,14 @@
           "images"
         ],
         "title": "AssessmentResultOut"
+      },
+      "AssessmentStatus": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "failed"
+        ],
+        "title": "AssessmentStatus"
       },
       "BilingualTextOut": {
         "properties": {
@@ -860,6 +1454,31 @@
             ],
             "title": "Assessment Id",
             "description": "Set when a failed attempt was recorded under an id."
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details",
+            "description": "Machine-readable facts about the error. For IMAGE_NOT_COFFEE: `is_coffee` (false), `coffee_confidence`, and `threshold` when known."
           }
         },
         "type": "object",
@@ -883,6 +1502,13 @@
           "INFERENCE_TIMEOUT",
           "ADVISORY_FAILED",
           "PERSISTENCE_FAILED",
+          "AUTHENTICATION_REQUIRED",
+          "INVALID_CREDENTIALS",
+          "FORBIDDEN",
+          "EMAIL_ALREADY_REGISTERED",
+          "IMAGE_NOT_COFFEE",
+          "RATE_LIMITED",
+          "MODEL_RELOAD_FAILED",
           "INTERNAL_ERROR"
         ],
         "title": "ErrorCode",
@@ -964,6 +1590,19 @@
         ],
         "title": "FailedListItemOut"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
       "HealthOut": {
         "properties": {
           "status": {
@@ -983,6 +1622,35 @@
         ],
         "title": "HealthOut",
         "description": "Liveness only. Deliberately exposes no configuration or dependency details."
+      },
+      "ImageCheckOut": {
+        "properties": {
+          "is_coffee": {
+            "type": "boolean",
+            "const": true,
+            "title": "Is Coffee",
+            "description": "Always true on a completed assessment.",
+            "default": true
+          },
+          "coffee_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Coffee Confidence",
+            "description": "Validator confidence it is coffee."
+          },
+          "validator_version": {
+            "type": "string",
+            "title": "Validator Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "coffee_confidence",
+          "validator_version"
+        ],
+        "title": "ImageCheckOut",
+        "description": "The coffee gate. Photos that fail it are rejected with IMAGE_NOT_COFFEE instead."
       },
       "ImagesOut": {
         "properties": {
@@ -1052,6 +1720,239 @@
         ],
         "title": "LimitationOut"
       },
+      "LimitsOut": {
+        "properties": {
+          "max_image_bytes": {
+            "type": "integer",
+            "title": "Max Image Bytes"
+          },
+          "max_image_pixels": {
+            "type": "integer",
+            "title": "Max Image Pixels"
+          },
+          "min_image_side_px": {
+            "type": "integer",
+            "title": "Min Image Side Px"
+          },
+          "max_assessments_per_user_per_hour": {
+            "type": "integer",
+            "title": "Max Assessments Per User Per Hour"
+          },
+          "max_concurrent_assessments": {
+            "type": "integer",
+            "title": "Max Concurrent Assessments"
+          },
+          "vision_timeout_s": {
+            "type": "number",
+            "title": "Vision Timeout S"
+          },
+          "gemini_timeout_s": {
+            "type": "number",
+            "title": "Gemini Timeout S"
+          },
+          "image_url_ttl_s": {
+            "type": "integer",
+            "title": "Image Url Ttl S"
+          },
+          "retain_original_image": {
+            "type": "boolean",
+            "title": "Retain Original Image"
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_image_bytes",
+          "max_image_pixels",
+          "min_image_side_px",
+          "max_assessments_per_user_per_hour",
+          "max_concurrent_assessments",
+          "vision_timeout_s",
+          "gemini_timeout_s",
+          "image_url_ttl_s",
+          "retain_original_image"
+        ],
+        "title": "LimitsOut",
+        "description": "What the running service enforces. Read-only: change them through configuration."
+      },
+      "LoginIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginIn"
+      },
+      "ModelReloadOut": {
+        "properties": {
+          "reloaded": {
+            "type": "boolean",
+            "title": "Reloaded"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reloaded",
+          "engine"
+        ],
+        "title": "ModelReloadOut"
+      },
+      "ModelVersionUsageOut": {
+        "properties": {
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "validator_version": {
+            "type": "string",
+            "title": "Validator Version"
+          },
+          "assessments": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Assessments",
+            "description": "Completed assessments produced by this pair."
+          },
+          "first_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen"
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_version",
+          "validator_version",
+          "assessments",
+          "first_seen",
+          "last_seen"
+        ],
+        "title": "ModelVersionUsageOut"
+      },
+      "ModelVersionsOut": {
+        "properties": {
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/ModelVersionUsageOut"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "versions"
+        ],
+        "title": "ModelVersionsOut"
+      },
+      "OutcomeCountOut": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatus"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "error_code",
+          "count"
+        ],
+        "title": "OutcomeCountOut"
+      },
+      "OverviewOut": {
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Since"
+          },
+          "window_hours": {
+            "type": "integer",
+            "title": "Window Hours"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/OutcomeCountOut"
+            },
+            "type": "array",
+            "title": "Outcomes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "since",
+          "window_hours",
+          "outcomes"
+        ],
+        "title": "OverviewOut"
+      },
+      "RegisterIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password",
+            "description": "10 to 128 characters."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "RegisterIn"
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "user",
+          "admin"
+        ],
+        "title": "Role"
+      },
       "SummaryOut": {
         "properties": {
           "detection_count": {
@@ -1086,6 +1987,106 @@
           "by_class"
         ],
         "title": "SummaryOut"
+      },
+      "TokenOut": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in_s": {
+            "type": "integer",
+            "title": "Expires In S",
+            "description": "Seconds until the token stops working."
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in_s"
+        ],
+        "title": "TokenOut"
+      },
+      "UserOut": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "email",
+          "role",
+          "created_at"
+        ],
+        "title": "UserOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "description": "Access token from POST /api/v1/auth/login",
+        "scheme": "bearer"
       }
     }
   }
