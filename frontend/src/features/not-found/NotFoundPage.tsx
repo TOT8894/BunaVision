@@ -10,10 +10,10 @@ export function NotFoundPage() {
       </div>
 
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold font-serif text-[#3B2416] dark:text-[#F9F7F2]">
+        <h1 className="text-3xl font-bold font-serif text-[#382416] dark:text-[#F9F7F2]">
           Page Not Found (404)
         </h1>
-        <p className="text-sm text-[#5A544C] dark:text-[#C8C2BB] max-w-md mx-auto">
+        <p className="text-sm font-medium text-[#44403C] dark:text-[#D6D3D1] max-w-md mx-auto">
           The requested route does not exist or has been moved.
         </p>
       </div>

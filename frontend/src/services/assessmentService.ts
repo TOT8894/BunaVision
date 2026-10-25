@@ -39,31 +39,15 @@ export function mapBackendToUnified(
 ): UnifiedAssessment {
   const result = backend.result
   const summary = result.summary
-  const totalDefects = summary.detection_count
 
-  const estimatedTotalBeans = Math.max(totalDefects * 6, 120)
-  const normalBeans = Math.max(estimatedTotalBeans - totalDefects, 0)
-  const defectPct =
-    estimatedTotalBeans > 0
-      ? parseFloat(((totalDefects / estimatedTotalBeans) * 100).toFixed(1))
-      : 0
-
-  const predictions: PredictionItem[] = [
-    {
-      class_name: 'Normal Green Bean',
-      category_type: 'Healthy',
-      confidence: 0.965,
-      count: normalBeans,
-    },
-    ...summary.by_class.map((item) => ({
-      class_name: item.defect.name,
-      category_type: (item.defect.category === 'primary'
-        ? 'Primary Defect'
-        : 'Secondary Defect') as 'Primary Defect' | 'Secondary Defect',
-      confidence: item.mean_confidence,
-      count: item.count,
-    })),
-  ]
+  const predictions: PredictionItem[] = summary.by_class.map((item) => ({
+    class_name: item.defect.name,
+    category_type: (item.defect.category === 'primary'
+      ? 'Primary Defect'
+      : 'Secondary Defect') as 'Primary Defect' | 'Secondary Defect',
+    confidence: item.mean_confidence,
+    count: item.count,
+  }))
 
   const originalUrl =
     result.images.original_url || extra?.fallbackImageUrl || '/raw_beans_detected.png'
@@ -72,19 +56,19 @@ export function mapBackendToUnified(
 
   return {
     assessment_id: backend.assessment_id,
-    station_id: extra?.station_id || 'Yirgacheffe Station #04',
-    lot_number: extra?.lot_number || 'YIR-2026-102',
-    moisture_level: extra?.moisture_level || '11.0%',
-    varietal: extra?.varietal || 'Heirloom',
+    station_id: extra?.station_id || 'Primary Washing Station',
+    lot_number: extra?.lot_number,
+    moisture_level: extra?.moisture_level,
+    varietal: extra?.varietal,
     status: backend.status,
     model_version: result.model_version,
     created_at: backend.created_at,
     processing_time_ms: backend.processing_time_ms,
     summary: {
-      total_beans_estimated: estimatedTotalBeans,
-      normal_beans_count: normalBeans,
-      defect_regions_count: totalDefects,
-      defect_percentage: defectPct,
+      detection_count: summary.detection_count,
+      primary_detection_count: summary.primary_detection_count,
+      secondary_detection_count: summary.secondary_detection_count,
+      by_class: summary.by_class,
     },
     predictions,
     detections: result.detections,
@@ -93,7 +77,7 @@ export function mapBackendToUnified(
     advisory: result.advisory,
     original_image_url: originalUrl,
     annotated_image_url: annotatedUrl,
-    notes: extra?.notes || 'Live inference completed via BunaVision Backend API.',
+    notes: extra?.notes,
     is_live_backend: true,
   }
 }
@@ -114,7 +98,7 @@ export async function uploadAssessmentToBackend(
   token?: string,
 ): Promise<UnifiedAssessment> {
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('image', file)
 
   const headers: Record<string, string> = {}
   if (options?.idempotencyKey) {

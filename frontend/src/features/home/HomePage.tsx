@@ -2,12 +2,13 @@ import { Link } from 'react-router'
 import {
   Upload,
   Sparkles,
-  UserPlus,
   Scan,
   Globe2,
   Zap,
   ShieldCheck,
   ArrowRight,
+  Camera,
+  Info,
 } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useAuth } from '../../contexts/AuthContext'
@@ -17,173 +18,140 @@ export function HomePage() {
   const { theme } = useTheme()
   const { authToken } = useAuth()
 
+  const card = `rounded-2xl border transition-all ${
+    theme === 'dark'
+      ? 'bg-[#231F1C] border-[#382E26] shadow-sm'
+      : 'bg-white border-[#E2D9CF] shadow-xs'
+  }`
+
   return (
     <div>
       {/* ═══════════════════ HERO ═══════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left: copy */}
-          <div className="space-y-8">
+          <div className="space-y-7 animate-fade-in-up">
             {/* Eyebrow tag */}
             <div
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border
-              border-[#8BA470]/40 bg-[#8BA470]/10
-              text-[#3A5228] dark:text-[#B5CF97]
-              text-xs font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border
+              border-[#8BA470]/60 bg-[#8BA470]/15
+              text-[#2B3F1D] dark:text-[#A7BF8C]
+              text-xs font-bold uppercase tracking-wider shadow-2xs"
             >
-              <Zap className="w-3.5 h-3.5 shrink-0" />
-              <span>AI-Assisted Green Bean Analysis</span>
+              <Zap className="w-3.5 h-3.5 shrink-0 text-[#3A5228] dark:text-[#8BA470]" />
+              <span>AI-Assisted Green Coffee Bean Screening</span>
             </div>
 
             {/* Headline */}
-            <div className="space-y-4">
+            <div className="space-y-3.5 animate-fade-in-up-delay-1">
               <h1
                 className="text-4xl sm:text-5xl font-bold font-serif leading-tight
-                text-[#3B2416] dark:text-[#F9F7F2]"
+                text-[#1C1917] dark:text-[#F9F7F2]"
               >
                 See coffee quality{' '}
                 <span className="text-[#593D2B] dark:text-[#C4A882]">more clearly.</span>
               </h1>
-              <p className="text-base leading-relaxed text-[#4A4540] dark:text-[#C8C2BB] max-w-lg">
-                BunaVision brings computer vision intelligence to raw green coffee bean sorting.
-                Rapidly detect and count visible surface defects before roasting—improving
-                transparency across washing stations and grading labs.
+              <p className="text-base leading-relaxed text-[#292524] dark:text-[#D6D3D1] max-w-xl font-medium">
+                BunaVision brings computer vision intelligence to pre-roast green coffee bean
+                inspection. Rapidly detect and segment visible surface defect regions
+                (Full Black, Partial Black, and Coffee Husk) before roasting.
               </p>
             </div>
 
-            {/* Disclaimer strip */}
+            {/* Disclaimer pill */}
             <div
-              className="flex items-start gap-2 px-4 py-3 rounded-xl
-              bg-amber-50 dark:bg-amber-950/30
+              className="flex items-start gap-2.5 px-4 py-3 rounded-xl
+              bg-amber-100/70 dark:bg-amber-950/30
               border border-amber-300 dark:border-amber-800/50"
             >
-              <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-amber-700 dark:text-amber-400" />
-              <p className="text-xs font-medium text-amber-900 dark:text-amber-300 leading-relaxed">
-                Decision-support tool only. Not an official ECX grade or certified evaluation.
+              <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-amber-900 dark:text-amber-400" />
+              <p className="text-xs font-bold text-amber-950 dark:text-amber-200 leading-relaxed">
+                Decision-support screening only. Does not issue official ECX grade certificates or cup scores.
               </p>
             </div>
 
             {/* CTA buttons */}
-            <div className="flex flex-wrap gap-3">
-              {authToken ? (
-                <Link
-                  to="/assess"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl
-                    bg-[#593D2B] hover:bg-[#483020] active:bg-[#3A2519]
-                    text-white font-semibold text-sm shadow-md
-                    hover:scale-[1.02] transition-all no-underline"
-                >
-                  <Upload className="w-4 h-4" />
-                  Assess a Sample →
-                </Link>
-              ) : (
-                <>
-                  <Link
-                    to="/assess"
-                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl
-                      bg-[#593D2B] hover:bg-[#483020] active:bg-[#3A2519]
-                      text-white font-semibold text-sm shadow-md
-                      hover:scale-[1.02] transition-all no-underline"
-                  >
-                    <Sparkles className="w-4 h-4 text-[#A7BF8C]" />
-                    Assess a Sample →
-                  </Link>
-                  <a
-                    href="#how-it-works"
-                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl
-                      border-2 border-[#593D2B] dark:border-[#8BA470]
-                      text-[#593D2B] dark:text-[#A7BF8C]
-                      font-semibold text-sm
-                      hover:bg-[#593D2B]/5 dark:hover:bg-[#8BA470]/10
-                      transition-all no-underline"
-                  >
-                    View How It Works
-                  </a>
-                </>
-              )}
+            <div className="flex flex-wrap items-center gap-3.5 pt-1 animate-fade-in-up-delay-2">
+              <Link
+                to={authToken ? '/assess' : '/login'}
+                state={!authToken ? { from: '/assess' } : undefined}
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl
+                  bg-[#593D2B] hover:bg-[#483020] active:bg-[#382416]
+                  text-white font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5
+                  transition-all duration-200 no-underline cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Assess a Sample →</span>
+              </Link>
+
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl
+                  border-2 border-[#593D2B] dark:border-[#8BA470]
+                  text-[#593D2B] dark:text-[#A7BF8C]
+                  font-bold text-sm
+                  hover:bg-[#593D2B]/10 dark:hover:bg-[#8BA470]/15 hover:-translate-y-0.5
+                  transition-all duration-200 no-underline cursor-pointer"
+              >
+                <span>How It Works</span>
+              </a>
             </div>
 
-            {/* Feature pills */}
-            <div className="flex flex-wrap gap-2">
+            {/* Capability highlights */}
+            <div className="flex flex-wrap gap-2 pt-2 animate-fade-in-up-delay-3">
               {[
                 { label: '3 ECX Defect Classes', icon: Scan },
                 { label: 'Bilingual EN / አማርኛ', icon: Globe2 },
-                { label: 'Gemini AI Advisory', icon: Sparkles },
-                { label: '~2s Inference', icon: Zap },
+                { label: 'Instance Segmentation', icon: Sparkles },
+                { label: 'Sub-second Latency', icon: Zap },
               ].map(({ label, icon: Icon }) => (
                 <span
                   key={label}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-transform hover:scale-105 ${
                     theme === 'dark'
-                      ? 'border-[#382E26] text-[#C8C2BB] bg-[#231F1C]'
-                      : 'border-[#D5CCB8] text-[#4A4540] bg-white'
+                      ? 'border-[#382E26] text-[#D6D3D1] bg-[#231F1C]'
+                      : 'border-[#D6CEBF] text-[#1C1917] bg-white shadow-2xs'
                   }`}
                 >
-                  <Icon className="w-3 h-3" />
-                  {label}
+                  <Icon className="w-3.5 h-3.5 text-[#593D2B] dark:text-[#8BA470]" />
+                  <span>{label}</span>
                 </span>
               ))}
             </div>
           </div>
 
-          {/* Right: annotated image */}
-          <div className="relative pb-6">
+          {/* Right: annotated image with soft float and laser scan effect */}
+          <div className="relative animate-soft-float">
             <div
-              className={`rounded-3xl overflow-hidden border shadow-2xl ${
-                theme === 'dark' ? 'border-[#382E26]' : 'border-[#D5CCB8]'
+              className={`rounded-3xl overflow-hidden border shadow-xl transition-all duration-500 hover:shadow-2xl ${
+                theme === 'dark' ? 'border-[#382E26]' : 'border-[#D6CEBF]'
               }`}
             >
-              <div className="relative aspect-square bg-stone-950">
+              <div className="relative aspect-4/3 bg-stone-950 overflow-hidden">
                 <img
                   src="/raw_beans_detected.png"
-                  alt="Raw green coffee beans with AI defect detection overlays"
-                  className="w-full h-full object-cover"
+                  alt="Raw green coffee beans inspection sample"
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                 />
-                {/* Detection overlays */}
-                <div className="absolute top-[20%] left-[22%] flex flex-col items-center pointer-events-none">
-                  <div className="w-14 h-14 rounded-full bg-red-500/30 border-2 border-red-400" />
-                  <span className="-mt-3 bg-red-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">
-                    Full Black 93%
-                  </span>
-                </div>
-                <div className="absolute top-[50%] right-[24%] flex flex-col items-center pointer-events-none">
-                  <div className="w-12 h-12 rounded-full bg-amber-500/30 border-2 border-amber-400" />
-                  <span className="-mt-3 bg-amber-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">
-                    Partial Black 91%
-                  </span>
-                </div>
-                <div className="absolute bottom-[30%] left-[28%] flex flex-col items-center pointer-events-none">
-                  <div className="w-11 h-11 rounded-full bg-amber-400/30 border-2 border-amber-300" />
-                  <span className="-mt-3 bg-amber-500 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">
-                    Husk 88%
-                  </span>
-                </div>
-                <div className="absolute bottom-3 left-3 right-3 bg-[#593D2B]/90 backdrop-blur text-white text-[11px] px-3 py-2 rounded-lg font-mono">
-                  <div className="font-bold text-[#A7BF8C]">Sample #BV-2026-8942</div>
-                  <div className="text-stone-300">
-                    Total Beans: 120 | Defect Ratio: 18.3%
+
+                {/* Animated scanline */}
+                <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#8BA470] to-transparent animate-scan-line pointer-events-none shadow-[0_0_12px_#8BA470]" />
+
+                {/* Subtle overlay info bar */}
+                <div className="absolute bottom-3 left-3 right-3 bg-[#1C1917]/90 backdrop-blur-md text-white text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between border border-white/10 shadow-lg">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-[#A7BF8C]">
+                      Optical Defect Localization
+                    </div>
+                    <div className="text-stone-300">
+                      Instance segmentation on flat spread tray
+                    </div>
                   </div>
-                </div>
-                <div className="absolute bottom-3 right-3 bg-[#593D2B] text-white text-[10px] px-2.5 py-1 rounded-md font-bold">
-                  YOLOv10 Active
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                    YOLO Active
+                  </span>
                 </div>
               </div>
-            </div>
-
-            {/* Floating model chip */}
-            <div
-              className={`absolute -bottom-2 -left-2 flex items-center gap-2
-              px-4 py-2.5 rounded-2xl border shadow-lg text-xs ${
-                theme === 'dark'
-                  ? 'bg-[#231F1C] border-[#382E26]'
-                  : 'bg-white border-[#D5CCB8]'
-              }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-semibold text-[#4A4540] dark:text-[#C8C2BB]">Model:</span>
-              <span className="font-mono font-bold text-[#593D2B] dark:text-[#A7BF8C]">
-                YOLOv8n-Coffee-ONNX-v1
-              </span>
             </div>
           </div>
         </div>
@@ -193,45 +161,36 @@ export function HomePage() {
       <section
         id="how-it-works"
         className={`py-20 border-t ${
-          theme === 'dark'
-            ? 'bg-[#1A1714] border-[#2E2822]'
-            : 'bg-[#F0EBE3] border-[#DDD5C8]'
+          theme === 'dark' ? 'border-[#382E26] bg-[#1d1a17]' : 'border-[#E2D9CF] bg-white'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           {/* Section header */}
           <div className="text-center space-y-3 max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold font-serif text-[#3B2416] dark:text-[#F9F7F2]">
+            <h2 className="text-3xl font-bold font-serif text-[#382416] dark:text-[#F9F7F2]">
               Three-Step Inspection Workflow
             </h2>
-            <p className="text-sm leading-relaxed text-[#4A4540] dark:text-[#C8C2BB]">
-              Simple, repeatable process designed for field terminals and washing station
-              laboratories.
+            <p className="text-sm font-medium leading-relaxed text-[#44403C] dark:text-[#D6D3D1]">
+              Simple, repeatable protocol designed for washing stations, cooperative quality labs, and export terminals.
             </p>
           </div>
 
           {/* Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {HOW_IT_WORKS.map((step, idx) => {
               const Icon = step.icon
               return (
                 <div key={step.step} className="relative">
-                  {/* Connector arrow */}
                   {idx < HOW_IT_WORKS.length - 1 && (
                     <ArrowRight
-                      className="hidden md:block absolute -right-3 top-8 w-6 h-6
-                      text-[#8BA470]/50 dark:text-[#8BA470]/30 z-10"
+                      className="hidden md:block absolute -right-3.5 top-1/2 -translate-y-1/2 w-6 h-6
+                      text-[#8BA470]/60 dark:text-[#8BA470]/40 z-10"
                     />
                   )}
 
                   <div
-                    className={`h-full p-6 rounded-2xl border space-y-4 ${
-                      theme === 'dark'
-                        ? 'bg-[#231F1C] border-[#382E26]'
-                        : 'bg-white border-[#DDD5C8] shadow-sm'
-                    }`}
+                    className={`h-full p-6 sm:p-7 rounded-2xl border space-y-4 ${card}`}
                   >
-                    {/* Step number + icon row */}
                     <div className="flex items-center justify-between">
                       <div
                         className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -242,25 +201,27 @@ export function HomePage() {
                       >
                         <Icon className="w-5 h-5" />
                       </div>
-                      <span
-                        className="font-serif font-black text-4xl
-                        text-[#8BA470]/25 dark:text-[#8BA470]/20 select-none"
-                      >
+                      <span className="font-serif font-black text-4xl text-[#8BA470]/30 select-none">
                         {step.step}
                       </span>
                     </div>
 
-                    {/* Title */}
-                    <div className="space-y-1">
-                      <h3 className="font-bold text-base font-serif text-[#3B2416] dark:text-[#F9F7F2]">
+                    <div className="space-y-1.5">
+                      <h3 className="font-bold text-base font-serif text-[#382416] dark:text-[#F9F7F2]">
                         {step.title}
                       </h3>
+                      <p className="text-xs font-semibold text-[#8BA470] dark:text-[#A7BF8C]">
+                        {step.amharic}
+                      </p>
                     </div>
 
-                    {/* Description */}
-                    <p className="text-sm leading-relaxed text-[#4A4540] dark:text-[#C8C2BB]">
+                    <p className="text-xs font-medium leading-relaxed text-[#44403C] dark:text-[#D6D3D1]">
                       {step.description}
                     </p>
+
+                    <div className="pt-2 text-xs font-bold text-[#593D2B] dark:text-[#A7BF8C] border-t border-[#E2D9CF] dark:border-[#382E26]">
+                      {step.detail}
+                    </div>
                   </div>
                 </div>
               )
@@ -269,68 +230,43 @@ export function HomePage() {
 
           {/* Bottom CTA */}
           <div className="text-center pt-4">
-            {authToken ? (
-              <Link
-                to="/assess"
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl
-                  bg-[#593D2B] hover:bg-[#483020] text-white font-semibold
-                  shadow-md hover:scale-[1.02] transition-all no-underline"
-              >
-                <Upload className="w-4 h-4" />
-                Go to Assessment
-              </Link>
-            ) : (
-              <div className="space-y-3">
-                <Link
-                  to="/register"
-                  className="inline-flex items-center gap-2 px-8 py-4 rounded-xl
-                    bg-[#593D2B] hover:bg-[#483020] text-white font-semibold
-                    shadow-md hover:scale-[1.02] transition-all no-underline"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Create Free Account to Start
-                </Link>
-                <p className="text-sm text-[#5A544C] dark:text-[#A8A193]">
-                  Already have an account?{' '}
-                  <Link
-                    to="/login"
-                    className="font-semibold text-[#593D2B] dark:text-[#A7BF8C] hover:underline"
-                  >
-                    Sign in
-                  </Link>
-                </p>
-              </div>
-            )}
+            <Link
+              to={authToken ? '/assess' : '/login'}
+              state={!authToken ? { from: '/assess' } : undefined}
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl
+                bg-[#593D2B] hover:bg-[#483020] text-white font-bold text-sm
+                shadow-xs transition-all no-underline"
+            >
+              <Upload className="w-4 h-4" />
+              <span>{authToken ? 'Start New Assessment' : 'Sign In to Assess'}</span>
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* ═══════════════════ PHOTOGRAPHY GUIDANCE + AI NOTICE ═══════════════════ */}
+      {/* ═══════════════════ GUIDANCE & NOTICE ═══════════════════ */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Photography Guidance */}
-          <div
-            className={`p-6 rounded-2xl border ${
-              theme === 'dark'
-                ? 'bg-[#231F1C] border-[#382E26]'
-                : 'bg-white border-[#DDD5C8] shadow-sm'
-            }`}
-          >
-            <h3 className="font-bold text-lg font-serif text-[#3B2416] dark:text-[#F9F7F2] mb-4">
-              📷 Photography Guidance Summary
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className={`p-6 sm:p-7 ${card}`}>
+            <div className="flex items-center space-x-2 mb-4">
+              <Camera className="w-5 h-5 text-[#593D2B] dark:text-[#8BA470]" />
+              <h3 className="font-bold text-base font-serif text-[#382416] dark:text-[#F9F7F2]">
+                Photography Guidance Summary
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-medium">
               {[
-                'Single-layer bean layout (no bean stacking)',
-                'Matte contrasting neutral background',
+                'Single-layer bean layout (no stacking or overlapping)',
+                'Matte contrasting neutral background tray',
                 'Bright, indirect, shadow-free lighting',
-                'Sharp focus across the complete sample frame',
+                'Sharp focus across the entire sample frame',
               ].map((item) => (
                 <div
                   key={item}
-                  className="flex items-start gap-2 text-[#4A4540] dark:text-[#C8C2BB]"
+                  className="flex items-start gap-2 text-[#44403C] dark:text-[#D6D3D1]"
                 >
-                  <span className="text-[#8BA470] font-bold mt-0.5">☑</span>
+                  <span className="text-[#3A5228] dark:text-[#8BA470] font-bold mt-0.5">☑</span>
                   <span>{item}</span>
                 </div>
               ))}
@@ -338,15 +274,18 @@ export function HomePage() {
           </div>
 
           {/* Preliminary AI Notice */}
-          <div className="p-6 rounded-2xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20">
-            <h3 className="font-bold text-lg font-serif text-red-800 dark:text-red-300 mb-3">
-              ⚠ Preliminary AI Notice
-            </h3>
-            <p className="text-xs leading-relaxed text-red-900 dark:text-red-300">
-              BunaVision provides preliminary visual surface defect region estimations only. It
-              does not issue official specialty coffee cup scores, sensory grading certifications,
-              or internal bean density checks. Human verification by a certified Q-grader is
-              required for official batch export documentation.
+          <div className="p-6 sm:p-7 rounded-2xl border border-amber-300 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20">
+            <div className="flex items-center space-x-2 mb-3">
+              <Info className="w-5 h-5 text-amber-800 dark:text-amber-400" />
+              <h3 className="font-bold text-base font-serif text-amber-950 dark:text-amber-200">
+                Preliminary Screening Notice
+              </h3>
+            </div>
+            <p className="text-xs font-medium leading-relaxed text-amber-900 dark:text-amber-300">
+              BunaVision provides automated optical surface defect region counting for green coffee
+              bean samples prior to roasting. It does not issue official specialty coffee cup scores,
+              sensory certificates, or internal density evaluations. Human verification by a certified
+              Q-grader is required for official batch export documentation.
             </p>
           </div>
         </div>

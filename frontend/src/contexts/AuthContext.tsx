@@ -8,6 +8,7 @@ import {
 } from 'react'
 import type { UserOut } from '../types/auth'
 import { loginUser, registerUser, fetchCurrentUser } from '../services/authService'
+import { DEMO_USER, DEMO_ADMIN, loadDemoData } from '../services/demoService'
 
 interface AuthContextValue {
   authToken: string | null
@@ -17,6 +18,7 @@ interface AuthContextValue {
   handleLogin: (email: string, password: string) => Promise<void>
   handleRegister: (email: string, password: string) => Promise<void>
   handleLogout: () => void
+  loginAsDemo: (role: 'user' | 'admin') => void
 
   loginError: string | null
   loginLoading: boolean
@@ -48,6 +50,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setAuthLoading(false)
       return
     }
+
+    if (token.startsWith('demo_token_')) {
+      const storedDemo = localStorage.getItem('bv_demo_user')
+      if (storedDemo) {
+        try {
+          setCurrentUser(JSON.parse(storedDemo))
+          setAuthToken(token)
+          setAuthLoading(false)
+          return
+        } catch {
+          // fall through
+        }
+      }
+      const role = token.includes('admin') ? 'admin' : 'user'
+      setCurrentUser(role === 'admin' ? DEMO_ADMIN : DEMO_USER)
+      setAuthToken(token)
+      setAuthLoading(false)
+      return
+    }
+
     fetchCurrentUser(token)
       .then((user) => {
         setCurrentUser(user)
@@ -103,8 +125,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [])
 
+  const loginAsDemo = useCallback((role: 'user' | 'admin') => {
+    const demoUser = role === 'admin' ? DEMO_ADMIN : DEMO_USER
+    const token = `demo_token_${role}_${Date.now()}`
+    localStorage.setItem('bv_token', token)
+    localStorage.setItem('bv_demo_user', JSON.stringify(demoUser))
+    setAuthToken(token)
+    setCurrentUser(demoUser)
+    if (role === 'user') {
+      loadDemoData()
+    }
+  }, [])
+
   const handleLogout = useCallback(() => {
     localStorage.removeItem('bv_token')
+    localStorage.removeItem('bv_demo_user')
     setAuthToken(null)
     setCurrentUser(null)
   }, [])
@@ -121,6 +156,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         handleLogin,
         handleRegister,
         handleLogout,
+        loginAsDemo,
         loginError,
         loginLoading,
         registerError,

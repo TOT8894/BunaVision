@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { Camera, SwitchCamera, X } from 'lucide-react'
 
 interface CameraModalProps {
@@ -39,10 +39,12 @@ export function CameraModal({ onCapture, onClose }: CameraModalProps) {
     [stopStream],
   )
 
-  // Start camera on mount
-  useState(() => {
+  useEffect(() => {
     startCamera(cameraFacing)
-  })
+    return () => {
+      stopStream()
+    }
+  }, [cameraFacing, startCamera, stopStream])
 
   const toggleFacing = () => {
     const next = cameraFacing === 'environment' ? 'user' : 'environment'
@@ -118,7 +120,7 @@ export function CameraModal({ onCapture, onClose }: CameraModalProps) {
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-4 border border-dashed border-white/40 rounded-xl pointer-events-none flex items-center justify-center">
-              <span className="text-[10px] uppercase font-bold text-white/70 bg-black/50 px-2 py-0.5 rounded">
+              <span className="text-xs uppercase font-bold text-white bg-black/70 px-3 py-1 rounded-md tracking-wider">
                 Spread raw green beans flat in tray
               </span>
             </div>

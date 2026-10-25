@@ -10,8 +10,7 @@ Results are preliminary AI predictions, never official grades.
 
 ```bash
 cp .env.example .env && $EDITOR .env && set -a && source .env && set +a
-docker run -d --name bunavision-db -e POSTGRES_USER=bunavision -e POSTGRES_PASSWORD=change-me \
-  -e POSTGRES_DB=bunavision -p 5432:5432 postgres:16
+docker run -d --name bunavision-db -e POSTGRES_USER=bunavision -e POSTGRES_PASSWORD=change-me -e POSTGRES_DB=bunavision -p 5432:5432 postgres:16
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py createcachetable                      # shared throttle counters (skip with REDIS_URL)
