@@ -37,7 +37,7 @@ bunavision/
 ├── contracts/
 │   ├── backend-api/          OpenAPI + examples (backend owns, frontend consumes)
 │   └── vision-api/           OpenAPI + examples (vision owns, backend consumes)
-├── frontend/                 React/TS/Tailwind app  (+ frontend/AGENTS.md)
+├── frontend/                 React/TS/Tailwind app  (+ frontend/AGENTS.md) 
 ├── backend/                  FastAPI public API      (+ backend/AGENTS.md)
 │   └── app/{api,core,schemas,services,domain,adapters}
 ├── vision/                   defect-detection service (+ vision/AGENTS.md)
@@ -61,7 +61,7 @@ So the five of us can build in parallel without blocking each other:
 # Build and run all three services simultaneously:
 docker compose up --build
 ```
-- **Frontend Web UI:** `http://localhost:5173`
+- **Frontend Web UI:** `https://buna-vision.vercel.app/`
 - **Backend API:** `http://localhost:8000` (Swagger UI at `/docs`)
 - **Vision Inference Service:** `http://localhost:9000` (Swagger UI at `/docs`)
 
